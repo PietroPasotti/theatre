@@ -1,7 +1,7 @@
 import typing
 from dataclasses import asdict
 
-from PyQt5.QtWidgets import QLabel
+from qtpy.QtWidgets import QLabel
 from nodeeditor.node_edge import Edge as _Edge, EDGE_TYPE_DIRECT
 from nodeeditor.node_edge_validators import (
     edge_validator_debug,
@@ -28,9 +28,13 @@ class EventEdge(_Edge):
         # todo: display label and anchor it to the edge
         self.label = label
 
+    @property
+    def event_spec(self) -> EventSpec:
+        return self._event_spec
+
     def set_event_spec(self, spec: EventSpec):
         self._event_spec = spec
-        self.grEdge.set_label(spec.event.name)
+        # self.grEdge.set_label(spec.event.name)
 
     def serialize(self):
         out = super().serialize()

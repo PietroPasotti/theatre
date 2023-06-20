@@ -1,6 +1,7 @@
 import typing
 from itertools import count
 
+import scenario
 from nodeeditor.node_content_widget import QDMNodeContentWidget
 from nodeeditor.node_graphics_node import QDMGraphicsNode
 from nodeeditor.node_node import Node
@@ -12,6 +13,7 @@ from qtpy.QtGui import QImage
 from qtpy.QtWidgets import QLineEdit
 
 from ui.trace_tree_widget.event_dialog import EventPicker
+from ui.trace_tree_widget.event_edge import EventEdge
 
 if typing.TYPE_CHECKING:
     from ui.main_window import Scene
@@ -94,10 +96,12 @@ class StateNode(Node):
 
     def __init__(self, scene: "Scene", name="State", inputs=[2], outputs=[1]):
         super().__init__(scene, name, inputs, outputs)
-
         self.name = name
         self.value = None
+        self.scene = typing.cast("Scene", self.scene)
         self._is_dirty = True
+
+        self.grNode.title_item.setParent(self.content)
 
     def initInnerClasses(self):
         self.content = StateContent(self)
@@ -109,30 +113,38 @@ class StateNode(Node):
         self.input_socket_position = LEFT_CENTER
         self.output_socket_position = RIGHT_CENTER
 
-    def compute(self, parent: "StateNode"):
+    def recompute_state(self) -> scenario.State:
         """Compute the state in this node, based on previous node=state and edge=event"""
-        return 123
+        try:
+            edge_in: EventEdge = self.inputs[0].edges[0]
+            parent: StateNode = edge_in.start_socket.node
+        except IndexError:
+            edge_in = None
+            parent = None
 
-    def evalImplementation(self):
-        parent = self.getInput(0)
+        if not edge_in:
+            title = 'Null State'
+            state = scenario.State()
+            print(f"no edge in: {self} inited as null state (root)")
 
-        if parent is None:
-            self.markInvalid()
-            self.markDescendantsDirty()
-            self.grNode.setToolTip("Connect all inputs")
-            return None
+        else:  # parent and edge in
+            event_spec = edge_in.event_spec
+            title = 'State'
+            state = scenario.trigger(
+                state=parent.eval(),
+                event=event_spec.event,
+                charm_type=self.scene.charm_type,
+            )
+            print(f"{self} recomputed state to {state}")
 
-        else:
-            val = self.compute(parent.eval())
-            self.value = val
-            self.markDirty(False)
-            self.markInvalid(False)
-            self.grNode.setToolTip("")
+        self.content.wdg_label.setText(title)
+        self.markDescendantsDirty()
+        self.evalChildren()
+        self.markInvalid(False)
+        self.value = state
 
-            self.markDescendantsDirty()
-            self.evalChildren()
-
-            return val
+        # self.grNode.setToolTip("Connect all inputs")
+        return state
 
     def eval(self):
         if not self.isDirty() and not self.isInvalid():
@@ -143,7 +155,7 @@ class StateNode(Node):
 
         try:
 
-            val = self.evalImplementation()
+            val = self.recompute_state()
             return val
         except ValueError as e:
             self.markInvalid()

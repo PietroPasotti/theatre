@@ -1,5 +1,6 @@
 import typing
 
+import ops
 from PyQt5.QtCore import QPoint
 from qtpy.QtCore import Signal
 from PyQt5.QtGui import QMouseEvent
@@ -16,15 +17,26 @@ from qtpy.QtWidgets import QAction, QGraphicsProxyWidget, QMenu
 
 from logger import logger
 from ui.trace_tree_widget.conf import STATES, LISTBOX_MIMETYPE
-from ui.trace_tree_widget.event_dialog import EventPicker
+from ui.trace_tree_widget.event_dialog import EventPicker, EventSpec
 from ui.trace_tree_widget.event_edge import EventEdge
-from ui.trace_tree_widget.state_node import StateNode, GraphicsSocket, Socket
+from ui.trace_tree_widget.state_node import StateNode, GraphicsSocket, Socket, StateContent
 
 DEBUG = False
 DEBUG_CONTEXT = False
 
 if typing.TYPE_CHECKING:
     from ui.main_window import Scene
+
+
+def choose_event(parent=None) -> typing.Optional[EventSpec]:
+    event_picker = EventPicker(parent)
+    event_picker.exec()
+
+    if not event_picker.confirmed:
+        logger.info('event picker aborted')
+        return
+
+    return event_picker.get_event()
 
 
 # helper functions
@@ -37,12 +49,12 @@ def get_output_socket(node: StateNode) -> typing.Optional[Socket]:
     if len(node.outputs) > 0:
         return node.outputs[0]
 
+
 def create_new_state(scene: "Scene", view: "GraphicsView", pos: QPoint):
     new_state_node = StateNode(scene)
     scene_pos = view.mapToScene(pos)
     new_state_node.setPos(scene_pos.x(), scene_pos.y())
     return new_state_node
-
 
 
 class GraphicsView(QDMGraphicsView):
@@ -58,13 +70,14 @@ class GraphicsView(QDMGraphicsView):
             super().leftMouseButtonPress(event)
 
 
-class TraceTreeEditor(NodeEditorWidget):
+class TraceTreeEditorWidget(NodeEditorWidget):
     GraphicsView_class = GraphicsView
 
-    def __init__(self, parent=None):
+    def __init__(self, charm_type: typing.Type[ops.CharmBase], parent=None):
         super().__init__(parent)
         self.update_title()
         self.chain_on_new_node = True
+        self.charm_type = charm_type
 
         self._create_new_state_actions()
 
@@ -84,14 +97,7 @@ class TraceTreeEditor(NodeEditorWidget):
         - create a new node where we are.
         - link old node to new node.
         """
-        event_picker = EventPicker()
-        event_picker.exec()
-
-        if not event_picker.confirmed:
-            logger.info('event picker aborted')
-            return
-
-        _evt = event_picker.get_event()
+        event_spec = choose_event()
         scene: "Scene" = self.scene
 
         new_state_node = create_new_state(scene, self.view, pos)
@@ -104,7 +110,7 @@ class TraceTreeEditor(NodeEditorWidget):
             dragging.drag_start_socket,
             target_socket,
             edge_type=EDGE_TYPE_DEFAULT,
-            label=_evt.event.name  # todo: replace with label`
+            label=event_spec.event.name  # todo: replace with label`
         )
 
         if self.chain_on_new_node:
@@ -193,19 +199,28 @@ class TraceTreeEditor(NodeEditorWidget):
             # print(" ... drop ignored, not requested format '%s'" % LISTBOX_MIMETYPE)
             event.ignore()
 
+    def find_nearest_parent_at(self, pos: QPoint, types: typing.Tuple[type]):
+        """Climb up the widget hierarchy until we find a parent of one of the desired types."""
+        item = self.scene.getItemAt(pos)
+        if type(item) == QGraphicsProxyWidget:
+            item = item.widget()
+
+        while item:
+            if isinstance(item, types):
+                return item
+            item = item.parent()
+        return item
+
     def contextMenuEvent(self, event):
         try:
-            item = self.scene.getItemAt(event.pos())
-
-            if type(item) == QGraphicsProxyWidget:
-                item = item.widget()
-
-            if isinstance(item, GraphicsSocket):
-                self._on_state_context_menu(event)
-            if isinstance(item, StateNode):
+            item = self.find_nearest_parent_at(
+                event.pos(),
+                (GraphicsSocket, StateContent, QDMGraphicsEdge)
+            )
+            if isinstance(item, (GraphicsSocket, StateContent)):
                 self._on_state_context_menu(event)
             elif isinstance(item, QDMGraphicsEdge):
-                self._on_edge_context_menu(event)
+                self._on_edge_context_menu(event, item.edge)
             else:  # click on background
                 if self.view.mode == MODE_EDGE_DRAG:
                     # If you were dragging, stop dragging
@@ -220,7 +235,7 @@ class TraceTreeEditor(NodeEditorWidget):
 
     def _on_state_context_menu(self, event):
         context_menu = QMenu(self)
-        # markDirtyAct = context_menu.addAction("Mark Dirty")
+        markDirtyAct = context_menu.addAction("Mark Dirty")
         # markDirtyDescendantsAct = context_menu.addAction("Mark Descendant Dirty")
         # markInvalidAct = context_menu.addAction("Mark Invalid")
         # unmarkInvalidAct = context_menu.addAction("Unmark Invalid")
@@ -244,24 +259,34 @@ class TraceTreeEditor(NodeEditorWidget):
         if selected and action == fire_event:
             selected.fire_event()
 
-    def _on_edge_context_menu(self, event):
+    def _on_edge_context_menu(self, event, edge: "EventEdge"):
         context_menu = QMenu(self)
-        bezierAct = context_menu.addAction("Bezier Edge")
-        directAct = context_menu.addAction("Direct Edge")
-        squareAct = context_menu.addAction("Square Edge")
+        change_event_action = context_menu.addAction("Change event")
         action = context_menu.exec_(self.mapToGlobal(event.pos()))
 
-        selected = None
-        item = self.scene.getItemAt(event.pos())
-        if hasattr(item, "edge"):
-            selected = item.edge
+        if action == change_event_action:
+            event_spec = choose_event()
+            edge.set_event_spec(event_spec)
+            # todo: avoid expensive recompute if the spec hasn't really changed.
+            #  Compare asdict().
+            edge.end_socket.node.recompute_state()
 
-        if selected and action == bezierAct:
-            selected.edge_type = EDGE_TYPE_BEZIER
-        if selected and action == directAct:
-            selected.edge_type = EDGE_TYPE_DIRECT
-        if selected and action == squareAct:
-            selected.edge_type = EDGE_TYPE_SQUARE
+        # bezierAct = context_menu.addAction("Bezier Edge")
+        # directAct = context_menu.addAction("Direct Edge")
+        # squareAct = context_menu.addAction("Square Edge")
+        # action = context_menu.exec_(self.mapToGlobal(event.pos()))
+        #
+        # selected = None
+        # item = self.scene.getItemAt(event.pos())
+        # if hasattr(item, "edge"):
+        #     selected = item.edge
+        #
+        # if selected and action == bezierAct:
+        #     selected.edge_type = EDGE_TYPE_BEZIER
+        # if selected and action == directAct:
+        #     selected.edge_type = EDGE_TYPE_DIRECT
+        # if selected and action == squareAct:
+        #     selected.edge_type = EDGE_TYPE_SQUARE
 
     def _finalize_node(self, new_state_node):
         self.scene.doDeselectItems()

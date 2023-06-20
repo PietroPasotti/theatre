@@ -193,7 +193,6 @@ class EventPicker(QDialog):
         self.on_abort()
 
     def on_abort(self, _=None):
-        print('event picker aborted')
         self.close()
 
     def on_confirm(self, _=None):

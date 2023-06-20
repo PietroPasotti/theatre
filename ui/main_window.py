@@ -1,6 +1,8 @@
 import os
 import sys
 
+import ops
+import typing
 from nodeeditor.node_editor_widget import NodeEditorWidget as _NodeEditorWidget
 from nodeeditor.node_editor_window import NodeEditorWindow
 from nodeeditor.node_scene import Scene as _Scene
@@ -19,10 +21,11 @@ from qtpy.QtWidgets import (
     QFileDialog,
 )
 
+from ui.helpers import get_icon
 from ui.trace_tree_widget.event_edge import EventEdge
 from ui.trace_inspector import TraceInspectorWidget
 from ui.trace_tree_widget.drag_listbox import QDMDragListbox
-from ui.trace_tree_widget.sub_window import TraceTreeEditor
+from ui.trace_tree_widget.sub_window import TraceTreeEditorWidget
 
 # os.environ["QT_QPA_PLATFORM"] = "offscreen"
 
@@ -31,12 +34,16 @@ from ui.trace_tree_widget.sub_window import TraceTreeEditor
 
 class Scene(_Scene):
     """Scene class."""
+    # FIXME: Dynamically set by MainWindow
+    charm_type: typing.Optional[typing.Type[ops.CharmBase]]
+
     def getEdgeClass(self):
         return EventEdge
 
 
 class NodeEditorWidget(_NodeEditorWidget):
     Scene_class = Scene
+    scene: Scene
 
 
 class TheatreMainWindow(NodeEditorWindow):
@@ -46,6 +53,12 @@ class TheatreMainWindow(NodeEditorWindow):
     FILE_DIALOG_TYPE = 'Graph (*.json);;All files (*)'
 
     def __init__(self):
+        # todo figure out import from file/project
+        class DummyCharm(ops.CharmBase):
+            pass
+
+        self.charm_type: typing.Optional[typing.Type[ops.CharmBase]] = DummyCharm
+
         super().__init__()
 
     def initUI(self):
@@ -60,9 +73,9 @@ class TheatreMainWindow(NodeEditorWindow):
             self.stylesheet_filename,
         )
 
-        self.empty_icon = QIcon(".")
+        self.empty_icon = get_icon("code_blocks")
 
-        self.mdiArea = QMdiArea()
+        self.mdiArea = QMdiArea(self)
         self.mdiArea.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         self.mdiArea.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         self.mdiArea.setViewMode(QMdiArea.TabbedView)
@@ -199,13 +212,14 @@ class TheatreMainWindow(NodeEditorWindow):
             return True
 
     def get_title(self):
-        title = "Theatre: Trace Tree Editor"
+        """Generate window title."""
+        title = f"Theatre[{self.charm_type.__name__}]: Trace Tree Editor"
         current_trace_tree = self.mdiArea.currentSubWindow()
         if current_trace_tree:
             title += f" - {current_trace_tree.widget().getUserFriendlyFilename()}"
 
     def setTitle(self):
-        """Function responsible for setting window title"""
+        """Update window title."""
         self.setWindowTitle(self.get_title())
 
     def onFileNew(self):
@@ -232,14 +246,13 @@ class TheatreMainWindow(NodeEditorWindow):
             self.mdiArea.setActiveSubWindow(existing)
         else:
             # we need to create new subWindow and open the file
-            nodeeditor = TraceTreeEditor()
-            if nodeeditor.fileLoad(fname):
+            editor_widget = TraceTreeEditorWidget(self.charm_type, self.mdiArea)
+            if editor_widget.fileLoad(fname):
                 self.statusBar().showMessage("File %s loaded" % fname, 5000)
-                nodeeditor.setTitle()
-                tab = self.create_new_trace_tree_tab(nodeeditor)
+                tab = self.create_new_trace_tree_tab(editor_widget)
                 tab.showMaximized()
             else:
-                nodeeditor.close()
+                editor_widget.close()
 
     def onFileOpen(self):
         fnames, _ = QFileDialog.getOpenFileNames(
@@ -372,11 +385,15 @@ class TheatreMainWindow(NodeEditorWindow):
     def create_status_bar(self):
         self.statusBar().showMessage("Ready")
 
-    def create_new_trace_tree_tab(self, widget: TraceTreeEditor = None):
-        trace_tree_editor = widget or TraceTreeEditor(self.mdiArea)
+    def create_new_trace_tree_tab(self, widget: TraceTreeEditorWidget = None):
+        trace_tree_editor = widget or TraceTreeEditorWidget(self.charm_type, self.mdiArea)
         subwnd = self.mdiArea.addSubWindow(trace_tree_editor)
         self.mdiArea.setActiveSubWindow(subwnd)
         subwnd.setWindowIcon(self.empty_icon)
+
+        # FIXME: horrible
+        trace_tree_editor.scene.charm_type = self.charm_type
+
         trace_tree_editor.scene.history.addHistoryModifiedListener(self.update_edit_menu)
         trace_tree_editor.add_close_event_listener(self.on_sub_window_close)
         return subwnd
