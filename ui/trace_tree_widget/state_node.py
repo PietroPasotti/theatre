@@ -1,14 +1,12 @@
-from PySide2.QtCore import Qt
-from PySide2.QtWidgets import QLineEdit
-from qtpy.QtCore import QRectF
-from qtpy.QtGui import QImage
-from qtpy.QtWidgets import QLabel
-
 from nodeeditor.node_content_widget import QDMNodeContentWidget
 from nodeeditor.node_graphics_node import QDMGraphicsNode
 from nodeeditor.node_node import Node
-from nodeeditor.node_socket import LEFT_CENTER, RIGHT_CENTER
+from nodeeditor.node_socket import LEFT_CENTER, RIGHT_CENTER, Socket as _Socket, QDMGraphicsSocket
 from nodeeditor.utils import dumpException
+from qtpy.QtCore import QRectF
+from qtpy.QtCore import Qt
+from qtpy.QtGui import QImage
+from qtpy.QtWidgets import QLineEdit
 
 
 class StateGraphicsNode(QDMGraphicsNode):
@@ -20,6 +18,7 @@ class StateGraphicsNode(QDMGraphicsNode):
         self.edge_padding = 0
         self.title_horizontal_padding = 8
         self.title_vertical_padding = 10
+        self.title_height = 24
 
     def initAssets(self):
         super().initAssets()
@@ -61,6 +60,18 @@ class StateContent(QDMNodeContentWidget):
         return res
 
 
+class GraphicsSocket(QDMGraphicsSocket):
+
+    def __init__(self, socket: 'Socket'):
+        super().__init__(socket)
+        self.radius = 6
+        self.outline_width = 1
+
+
+class Socket(_Socket):
+    Socket_GR_Class = GraphicsSocket
+
+
 class StateNode(Node):
     icon = ""
     content_label = ""
@@ -68,6 +79,7 @@ class StateNode(Node):
 
     GraphicsNode_class = StateGraphicsNode
     NodeContent_class = StateContent
+    Socket_class = Socket
 
     def __init__(self, scene, name="State", inputs=[2], outputs=[1]):
         super().__init__(scene, name, inputs, outputs)

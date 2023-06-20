@@ -1,7 +1,7 @@
 from pathlib import Path
 
-from PySide2.QtGui import QPalette, QColor, QIcon
-from PySide2.QtWidgets import QWidget, QMessageBox
+from qtpy.QtGui import QPalette, QColor, QIcon
+from qtpy.QtWidgets import QWidget, QMessageBox
 
 
 class Color(QWidget):

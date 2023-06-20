@@ -1,5 +1,5 @@
-from PySide2.QtCore import Signal
-from PySide2.QtWidgets import QWidget, QSplitter, QVBoxLayout, QHBoxLayout, QPushButton
+from qtpy.QtCore import Signal
+from qtpy.QtWidgets import QWidget, QSplitter, QVBoxLayout, QHBoxLayout, QPushButton
 from scenario import State
 
 from ui.helpers import Color, show_error_dialog

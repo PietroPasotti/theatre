@@ -1,21 +1,8 @@
 import os
+# os.environ["QT_QPA_PLATFORM"] = "offscreen"
+
 import sys
 
-from PySide2.QtCore import QSettings
-from PySide2.QtWidgets import QApplication, QMdiSubWindow
-from qtpy.QtCore import Qt, QSignalMapper
-from qtpy.QtGui import QIcon, QKeySequence
-from qtpy.QtWidgets import (
-    QMdiArea,
-    QWidget,
-    QDockWidget,
-    QAction,
-    QMessageBox,
-    QFileDialog,
-)
-
-from logger import logger
-# Enabling edge validators
 from nodeeditor.node_edge import Edge
 from nodeeditor.node_edge_validators import (
     edge_validator_debug,
@@ -25,6 +12,19 @@ from nodeeditor.node_edge_validators import (
 from nodeeditor.node_editor_window import NodeEditorWindow
 from nodeeditor.utils import dumpException
 from nodeeditor.utils import loadStylesheets
+from qtpy.QtCore import QSettings
+from qtpy.QtCore import Qt, QSignalMapper
+from qtpy.QtGui import QIcon, QKeySequence
+from qtpy.QtWidgets import QApplication
+from qtpy.QtWidgets import (
+    QMdiArea,
+    QWidget,
+    QDockWidget,
+    QAction,
+    QMessageBox,
+    QFileDialog,
+)
+
 from ui.trace_inspector import TraceInspectorWidget
 from ui.trace_tree_widget.drag_listbox import QDMDragListbox
 from ui.trace_tree_widget.sub_window import TraceTreeEditor
@@ -43,7 +43,6 @@ class TheatreMainWindow(NodeEditorWindow):
 
     def __init__(self):
         super().__init__()
-        # stage_menu = stage.register_menu(self.menuBar())
 
     def initUI(self):
         self.name_company = "Canonical"
@@ -95,8 +94,9 @@ class TheatreMainWindow(NodeEditorWindow):
         self.readSettings()
         if not self.mdiArea.currentSubWindow():
             self.create_new_graph()
+            print(("active sub:", self.mdiArea.activeSubWindow()))
 
-        self.setWindowTitle("Theatre")
+        self.setTitle()
 
     def closeEvent(self, event):
         self.mdiArea.closeAllSubWindows()
@@ -177,10 +177,14 @@ class TheatreMainWindow(NodeEditorWindow):
         print(editor)
         if editor is not None:
             print('opening dialog')
-            fname, _ = QFileDialog.getSaveFileName(self, 'Save graph to file',
-                                                   self.getFileDialogDirectory(),
-                                                   self.FILE_DIALOG_TYPE)
-            print(fname)
+            fname, _ = QFileDialog.getSaveFileName(
+                self.getCurrentNodeEditorWidget()
+            )
+
+            # fname, _ = QFileDialog.getSaveFileName(self, 'Save graph to file',
+            #                                        self.getFileDialogDirectory(),
+            #                                        self.FILE_DIALOG_TYPE)
+            print(f"selected: {fname!r}")
             if not fname:
                 return False
 
@@ -195,6 +199,16 @@ class TheatreMainWindow(NodeEditorWindow):
             else:
                 self.setTitle()
             return True
+
+    def get_title(self):
+        title = "Theatre: Trace Tree Editor"
+        current_trace_tree = self.mdiArea.currentSubWindow()
+        if current_trace_tree:
+            title += f" - {current_trace_tree.widget().getUserFriendlyFilename()}"
+
+    def setTitle(self):
+        """Function responsible for setting window title"""
+        self.setWindowTitle(self.get_title())
 
     def onFileNew(self):
         """Hande File New operation"""
@@ -269,6 +283,9 @@ class TheatreMainWindow(NodeEditorWindow):
 
     def update_menus(self):
         active = self.getCurrentNodeEditorWidget()
+
+        print(f'updating menus: {active}')
+
         hasMdiChild = active is not None
 
         self.actSave.setEnabled(hasMdiChild)
@@ -362,6 +379,7 @@ class TheatreMainWindow(NodeEditorWindow):
     def create_new_trace_tree_tab(self, widget: TraceTreeEditor = None):
         trace_tree_editor = widget or TraceTreeEditor(self.mdiArea)
         subwnd = self.mdiArea.addSubWindow(trace_tree_editor)
+        self.mdiArea.setActiveSubWindow(subwnd)
         subwnd.setWindowIcon(self.empty_icon)
         trace_tree_editor.scene.history.addHistoryModifiedListener(self.update_edit_menu)
         trace_tree_editor.addCloseEventListener(self.on_sub_window_close)

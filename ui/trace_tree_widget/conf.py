@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 
-from PySide2.QtGui import QIcon
+from qtpy.QtGui import QIcon
 from scenario import State
 
 from ui.helpers import get_icon
