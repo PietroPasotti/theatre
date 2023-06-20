@@ -1,15 +1,9 @@
 import os
-# os.environ["QT_QPA_PLATFORM"] = "offscreen"
-
 import sys
 
-from nodeeditor.node_edge import Edge
-from nodeeditor.node_edge_validators import (
-    edge_validator_debug,
-    edge_cannot_connect_two_outputs_or_two_inputs,
-    edge_cannot_connect_input_and_output_of_same_node,
-)
+from nodeeditor.node_editor_widget import NodeEditorWidget as _NodeEditorWidget
 from nodeeditor.node_editor_window import NodeEditorWindow
+from nodeeditor.node_scene import Scene as _Scene
 from nodeeditor.utils import dumpException
 from nodeeditor.utils import loadStylesheets
 from qtpy.QtCore import QSettings
@@ -25,18 +19,27 @@ from qtpy.QtWidgets import (
     QFileDialog,
 )
 
+from ui.trace_tree_widget.event_edge import EventEdge
 from ui.trace_inspector import TraceInspectorWidget
 from ui.trace_tree_widget.drag_listbox import QDMDragListbox
 from ui.trace_tree_widget.sub_window import TraceTreeEditor
 
-Edge.registerEdgeValidator(edge_validator_debug)
-Edge.registerEdgeValidator(edge_cannot_connect_two_outputs_or_two_inputs)
-Edge.registerEdgeValidator(edge_cannot_connect_input_and_output_of_same_node)
+# os.environ["QT_QPA_PLATFORM"] = "offscreen"
 
-DEBUG = False
+# TODO: disable edgeIntersect functionality
+
+
+class Scene(_Scene):
+    def getEdgeClass(self):
+        return EventEdge
+
+
+class NodeEditorWidget(_NodeEditorWidget):
+    Scene_class = Scene
 
 
 class TheatreMainWindow(NodeEditorWindow):
+    NodeEditorWidget_class = NodeEditorWidget
     SHOW_MAXIMIZED = True
     RESTORE_ON_OPEN = True
     FILE_DIALOG_TYPE = 'Graph (*.json);;All files (*)'
@@ -94,7 +97,6 @@ class TheatreMainWindow(NodeEditorWindow):
         self.readSettings()
         if not self.mdiArea.currentSubWindow():
             self.create_new_graph()
-            print(("active sub:", self.mdiArea.activeSubWindow()))
 
         self.setTitle()
 
@@ -174,16 +176,11 @@ class TheatreMainWindow(NodeEditorWindow):
 
     def onFileSaveAs(self):
         editor = self.getCurrentNodeEditorWidget()
-        print(editor)
-        if editor is not None:
-            print('opening dialog')
-            fname, _ = QFileDialog.getSaveFileName(
-                self.getCurrentNodeEditorWidget()
-            )
 
-            # fname, _ = QFileDialog.getSaveFileName(self, 'Save graph to file',
-            #                                        self.getFileDialogDirectory(),
-            #                                        self.FILE_DIALOG_TYPE)
+        if editor is not None:
+            fname, _ = QFileDialog.getSaveFileName(self, 'Save graph to file',
+                                                   self.getFileDialogDirectory(),
+                                                   self.FILE_DIALOG_TYPE)
             print(f"selected: {fname!r}")
             if not fname:
                 return False
@@ -283,8 +280,6 @@ class TheatreMainWindow(NodeEditorWindow):
 
     def update_menus(self):
         active = self.getCurrentNodeEditorWidget()
-
-        print(f'updating menus: {active}')
 
         hasMdiChild = active is not None
 

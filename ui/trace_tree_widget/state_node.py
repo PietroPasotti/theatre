@@ -8,6 +8,8 @@ from qtpy.QtCore import Qt
 from qtpy.QtGui import QImage
 from qtpy.QtWidgets import QLineEdit
 
+from ui.trace_tree_widget.event_dialog import EventPicker
+
 
 class StateGraphicsNode(QDMGraphicsNode):
     def initSizes(self):
@@ -86,9 +88,7 @@ class StateNode(Node):
 
         self.name = name
         self.value = None
-
-        # it's really important to mark all nodes Dirty by default
-        self.markDirty()
+        self._is_dirty = True
 
     def initInnerClasses(self):
         self.content = StateContent(self)
@@ -101,6 +101,7 @@ class StateNode(Node):
         self.output_socket_position = RIGHT_CENTER
 
     def compute(self, parent: "StateNode"):
+        """Compute the state in this node, based on previous node=state and edge=event"""
         return 123
 
     def evalImplementation(self):
@@ -163,3 +164,13 @@ class StateNode(Node):
         except Exception as e:
             dumpException(e)
         return res
+
+    def fire_event(self):
+        event_picker = EventPicker()
+        event_picker.exec()
+
+        if event_picker.confirmed:
+            event = event_picker.get_event()
+
+
+

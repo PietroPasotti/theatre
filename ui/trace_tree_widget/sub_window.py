@@ -1,15 +1,20 @@
-from logger import logger
+from PyQt5.QtCore import QEvent
+from nodeeditor.node_edge import EDGE_TYPE_DIRECT, EDGE_TYPE_BEZIER, EDGE_TYPE_SQUARE, EDGE_TYPE_DEFAULT
+from nodeeditor.node_edge_dragging import EdgeDragging
+from nodeeditor.node_editor_widget import NodeEditorWidget
+from nodeeditor.node_graphics_edge import QDMGraphicsEdge
+from nodeeditor.node_graphics_view import MODE_EDGE_DRAG
 from nodeeditor.node_node import Node
-from qtpy.QtGui import QIcon, QPixmap
+from nodeeditor.utils import dumpException
 from qtpy.QtCore import QDataStream, QIODevice, Qt
+from qtpy.QtGui import QPixmap
 from qtpy.QtWidgets import QAction, QGraphicsProxyWidget, QMenu
 
-from ui.trace_tree_widget.conf import STATES, LISTBOX_MIMETYPE, get_state
-from nodeeditor.node_editor_widget import NodeEditorWidget
-from nodeeditor.node_edge import EDGE_TYPE_DIRECT, EDGE_TYPE_BEZIER, EDGE_TYPE_SQUARE
-from nodeeditor.node_graphics_view import MODE_EDGE_DRAG
-from nodeeditor.utils import dumpException
-from ui.trace_tree_widget.state_node import StateNode
+from logger import logger
+from ui.trace_tree_widget.event_edge import EventEdge
+from ui.trace_tree_widget.conf import STATES, LISTBOX_MIMETYPE
+from ui.trace_tree_widget.event_dialog import EventPicker
+from ui.trace_tree_widget.state_node import StateNode, GraphicsSocket
 
 DEBUG = False
 DEBUG_CONTEXT = False
@@ -18,16 +23,15 @@ DEBUG_CONTEXT = False
 class TraceTreeEditor(NodeEditorWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
-        # self.setAttribute(Qt.WA_DeleteOnClose)
-
-        self.setTitle()
+        self.update_title()
+        self.chain_on_new_node = True
 
         self._create_new_state_actions()
 
-        self.scene.addHasBeenModifiedListener(self.setTitle)
-        self.scene.history.addHistoryRestoredListener(self.onHistoryRestored)
-        self.scene.addDragEnterListener(self.onDragEnter)
-        self.scene.addDropListener(self.onDrop)
+        self.scene.addHasBeenModifiedListener(self.update_title)
+        self.scene.history.addHistoryRestoredListener(self.on_history_restored)
+        self.scene.addDragEnterListener(self.on_drag_enter)
+        self.scene.addDropListener(self.on_drop)
         self.scene.setNodeClassSelector(self._get_node_class_from_data)
 
         self._close_event_listeners = []
@@ -35,7 +39,7 @@ class TraceTreeEditor(NodeEditorWidget):
     def _get_node_class_from_data(self, data):
         if "name" not in data:
             return Node
-        state = get_state(data['name'])
+        # state = get_state(data['name'])
         return StateNode
 
     def doEvalOutputs(self):
@@ -44,7 +48,7 @@ class TraceTreeEditor(NodeEditorWidget):
             if node.__class__.__name__ == "CalcNode_Output":
                 node.eval()
 
-    def onHistoryRestored(self):
+    def on_history_restored(self):
         self.doEvalOutputs()
 
     def fileLoad(self, filename):
@@ -63,15 +67,7 @@ class TraceTreeEditor(NodeEditorWidget):
             self.state_actions[key] = QAction(node_spec.icon, key)
             self.state_actions[key].setData(key)
 
-    def _init_states_context_menu(self):
-        context_menu = QMenu(self)
-        keys = list(STATES.keys())
-        keys.sort()
-        for key in keys:
-            context_menu.addAction(self.state_actions[key])
-        return context_menu
-
-    def setTitle(self):
+    def update_title(self):
         self.setWindowTitle(self.getUserFriendlyFilename())
 
     def addCloseEventListener(self, callback):
@@ -81,14 +77,14 @@ class TraceTreeEditor(NodeEditorWidget):
         for callback in self._close_event_listeners:
             callback(self, event)
 
-    def onDragEnter(self, event):
+    def on_drag_enter(self, event):
         if event.mimeData().hasFormat(LISTBOX_MIMETYPE):
             event.acceptProposedAction()
         else:
             # print(" ... denied drag enter event")
             event.setAccepted(False)
 
-    def onDrop(self, event):
+    def on_drop(self, event):
         if event.mimeData().hasFormat(LISTBOX_MIMETYPE):
             eventData = event.mimeData().data(LISTBOX_MIMETYPE)
             dataStream = QDataStream(eventData, QIODevice.ReadOnly)
@@ -133,12 +129,16 @@ class TraceTreeEditor(NodeEditorWidget):
             if type(item) == QGraphicsProxyWidget:
                 item = item.widget()
 
-            if hasattr(item, "node") or hasattr(item, "socket"):
+            print(item)
+
+            if isinstance(item, GraphicsSocket):
                 self._on_state_context_menu(event)
-            elif hasattr(item, "edge"):
+            if isinstance(item, StateNode):
+                self._on_state_context_menu(event)
+            elif isinstance(item, QDMGraphicsEdge):
                 self._on_edge_context_menu(event)
-            else:
-                self._on_new_node_context_menu(event)
+            else:  # click on background
+                self._on_background_context_menu(event)
 
             return super().contextMenuEvent(event)
         except Exception as e:
@@ -205,28 +205,67 @@ class TraceTreeEditor(NodeEditorWidget):
         new_state_node.grNode.doSelect(True)
         new_state_node.grNode.onSelected()
 
-    def _on_new_node_context_menu(self, event):
-        context_menu = self._init_states_context_menu()
+    def _on_edge_drag_context_menu(self, event: QEvent):
+        # if we were dragging an edge...
+        # target_socket = self.determine_target_socket_of_node(
+        #     self.scene.getView().dragging.drag_start_socket.is_output,
+        #     new_state_node,
+        # )
+        # if target_socket is not None:
+        #     self.scene.getView().dragging.edgeDragEnd(target_socket.grSocket)
+        #     self._finalize_node(new_state_node)
+        event_picker = EventPicker()
+        event_picker.exec()
+
+        if not event_picker.confirmed:
+            logger.info('event picker aborted')
+            return event.ignore()
+
+        _evt = event_picker.get_event()
+        new_state_node = self._new_state_at(event.pos())
+
+        dragging: EdgeDragging = self.scene.getView().dragging
+        target_socket = self.determine_target_socket_of_node(
+            dragging.drag_start_socket.is_output,
+            new_state_node,
+        )
+
+        new_event_edge = EventEdge(
+            self.scene,
+            dragging.drag_start_socket,
+            target_socket,
+            edge_type=EDGE_TYPE_DEFAULT,
+            label=_evt.event.name  # todo: replace with label`
+        )
+        dragging.edgeDragEnd(None)
+
+        if self.chain_on_new_node or event.modifiers() & Qt.CTRL:
+            # RMB+ctrl -> chain another edge
+            dragging.edgeDragStart(new_state_node.outputs[0].grSocket)
+            event.accept()
+
+    def _on_background_context_menu(self, event):
+        if self.scene.getView().mode == MODE_EDGE_DRAG:
+            return self._on_edge_drag_context_menu(event)
+
+        context_menu = QMenu(self)
+        keys = list(STATES.keys())
+        keys.sort()
+        for key in keys:
+            context_menu.addAction(self.state_actions[key])
+
         action = context_menu.exec_(self.mapToGlobal(event.pos()))
 
         if action is not None:
             new_state_node = StateNode(self.scene)
             scene_pos = self.scene.getView().mapToScene(event.pos())
             new_state_node.setPos(scene_pos.x(), scene_pos.y())
-            if DEBUG_CONTEXT:
-                print("Selected node:", new_state_node)
+            self.scene.history.storeHistory(
+                "Created %s" % new_state_node.__class__.__name__
+            )
 
-            if self.scene.getView().mode == MODE_EDGE_DRAG:
-                # if we were dragging an edge...
-                target_socket = self.determine_target_socket_of_node(
-                    self.scene.getView().dragging.drag_start_socket.is_output,
-                    new_state_node,
-                )
-                if target_socket is not None:
-                    self.scene.getView().dragging.edgeDragEnd(target_socket.grSocket)
-                    self._finalize_node(new_state_node)
-
-            else:
-                self.scene.history.storeHistory(
-                    "Created %s" % new_state_node.__class__.__name__
-                )
+    def _new_state_at(self, pos):
+        new_state_node = StateNode(self.scene)
+        scene_pos = self.scene.getView().mapToScene(pos)
+        new_state_node.setPos(scene_pos.x(), scene_pos.y())
+        return new_state_node
