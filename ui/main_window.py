@@ -30,6 +30,7 @@ from ui.trace_tree_widget.sub_window import TraceTreeEditor
 
 
 class Scene(_Scene):
+    """Scene class."""
     def getEdgeClass(self):
         return EventEdge
 

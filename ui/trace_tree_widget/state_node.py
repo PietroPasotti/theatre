@@ -1,3 +1,5 @@
+import typing
+
 from nodeeditor.node_content_widget import QDMNodeContentWidget
 from nodeeditor.node_graphics_node import QDMGraphicsNode
 from nodeeditor.node_node import Node
@@ -10,6 +12,8 @@ from qtpy.QtWidgets import QLineEdit
 
 from ui.trace_tree_widget.event_dialog import EventPicker
 
+if typing.TYPE_CHECKING:
+    from ui.main_window import Scene
 
 class StateGraphicsNode(QDMGraphicsNode):
     def initSizes(self):
@@ -83,7 +87,7 @@ class StateNode(Node):
     NodeContent_class = StateContent
     Socket_class = Socket
 
-    def __init__(self, scene, name="State", inputs=[2], outputs=[1]):
+    def __init__(self, scene: "Scene", name="State", inputs=[2], outputs=[1]):
         super().__init__(scene, name, inputs, outputs)
 
         self.name = name
