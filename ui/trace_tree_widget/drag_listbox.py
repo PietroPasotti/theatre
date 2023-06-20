@@ -1,9 +1,8 @@
-from qtpy.QtGui import QPixmap, QIcon, QDrag
-from qtpy.QtCore import QSize, Qt, QByteArray, QDataStream, QMimeData, QIODevice, QPoint
-from qtpy.QtWidgets import QListWidget, QAbstractItemView, QListWidgetItem
-from scenario import State
-
 from nodeeditor.utils import dumpException
+from qtpy.QtCore import QSize, Qt, QByteArray, QDataStream, QMimeData, QIODevice, QPoint
+from qtpy.QtGui import QDrag
+from qtpy.QtWidgets import QListWidget, QAbstractItemView, QListWidgetItem
+
 from ui.helpers import get_icon
 from ui.trace_tree_widget.conf import STATES
 

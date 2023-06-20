@@ -378,7 +378,7 @@ class TheatreMainWindow(NodeEditorWindow):
         self.mdiArea.setActiveSubWindow(subwnd)
         subwnd.setWindowIcon(self.empty_icon)
         trace_tree_editor.scene.history.addHistoryModifiedListener(self.update_edit_menu)
-        trace_tree_editor.addCloseEventListener(self.on_sub_window_close)
+        trace_tree_editor.add_close_event_listener(self.on_sub_window_close)
         return subwnd
 
     def on_sub_window_close(self, widget, event):

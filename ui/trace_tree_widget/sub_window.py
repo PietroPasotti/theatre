@@ -1,6 +1,7 @@
 import typing
 
 from PyQt5.QtCore import QPoint
+from qtpy.QtCore import Signal
 from PyQt5.QtGui import QMouseEvent
 from nodeeditor.node_edge import EDGE_TYPE_DIRECT, EDGE_TYPE_BEZIER, EDGE_TYPE_SQUARE, EDGE_TYPE_DEFAULT
 from nodeeditor.node_edge_dragging import EdgeDragging
@@ -45,54 +46,16 @@ def create_new_state(scene: "Scene", view: "GraphicsView", pos: QPoint):
 
 
 class GraphicsView(QDMGraphicsView):
+    drag_lmb_bg_click = Signal(QPoint)
 
-    def rightMouseButtonPress(self, event: QMouseEvent):
+    def leftMouseButtonPress(self, event: QMouseEvent):
         if self.mode is MODE_EDGE_DRAG and not self.getItemAtClick(event):
             # RMB when dragging an edge; didn't click on anything specific:
-            self._on_rmb_while_dragging_on_bg(event)
+            self.drag_lmb_bg_click.emit(event.pos())
             event.accept()
         else:
-            super().rightMouseButtonPress(event)
-
-    def _on_rmb_while_dragging_on_bg(self, event: QMouseEvent):
-        """RMB While dragging on bg:
-
-        - pick an event to put on this edge.
-        - create a new node where we are.
-        - link old node to new node.
-        """
-        event_picker = EventPicker()
-        event_picker.exec()
-
-        if not event_picker.confirmed:
-            logger.info('event picker aborted')
-            return event.ignore()
-
-        _evt = event_picker.get_event()
-        scene = typing.cast("Scene", self.scene())
-
-        new_state_node = create_new_state(scene, self, event.pos())
-        dragging: EdgeDragging = self.view.dragging
-        target_socket = get_input_socket(new_state_node)
-
-        # create a new edge
-        EventEdge(
-            scene,
-            dragging.drag_start_socket,
-            target_socket,
-            edge_type=EDGE_TYPE_DEFAULT,
-            label=_evt.event.name  # todo: replace with label`
-        )
-
-        # RMB+ctrl -> chain another edge
-        if self.chain_on_new_node or event.modifiers() & Qt.CTRL:
-            new_origin = get_output_socket(new_state_node)
-            x, y = new_state_node.getSocketScenePosition(new_origin)
-            dragging.drag_edge.grEdge.setSource(x, y)
-            dragging.drag_edge.grEdge.update()
-
-        else:
-            dragging.edgeDragEnd(None)
+            event.ignore()
+            super().leftMouseButtonPress(event)
 
 
 class TraceTreeEditor(NodeEditorWidget):
@@ -110,8 +73,49 @@ class TraceTreeEditor(NodeEditorWidget):
         self.scene.addDragEnterListener(self.on_drag_enter)
         self.scene.addDropListener(self.on_drop)
         self.scene.setNodeClassSelector(self._get_node_class_from_data)
+        self.view.drag_lmb_bg_click.connect(self._create_new_node_at)
 
         self._close_event_listeners = []
+
+    def _create_new_node_at(self, pos: QPoint):
+        """RMB While dragging on bg:
+
+        - pick an event to put on this edge.
+        - create a new node where we are.
+        - link old node to new node.
+        """
+        event_picker = EventPicker()
+        event_picker.exec()
+
+        if not event_picker.confirmed:
+            logger.info('event picker aborted')
+            return
+
+        _evt = event_picker.get_event()
+        scene: "Scene" = self.scene
+
+        new_state_node = create_new_state(scene, self.view, pos)
+        dragging: EdgeDragging = self.view.dragging
+        target_socket = get_input_socket(new_state_node)
+
+        # create a new edge
+        EventEdge(
+            scene,
+            dragging.drag_start_socket,
+            target_socket,
+            edge_type=EDGE_TYPE_DEFAULT,
+            label=_evt.event.name  # todo: replace with label`
+        )
+
+        if self.chain_on_new_node:
+            new_origin = get_output_socket(new_state_node)
+            x, y = new_state_node.getSocketScenePosition(new_origin)
+            dragging.drag_start_socket = new_origin
+            dragging.drag_edge.grEdge.setSource(x, y)
+            dragging.drag_edge.grEdge.update()
+
+        else:
+            dragging.edgeDragEnd(None)
 
     @staticmethod
     def _get_node_class_from_data(data):

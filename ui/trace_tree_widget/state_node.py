@@ -1,4 +1,5 @@
 import typing
+from itertools import count
 
 from nodeeditor.node_content_widget import QDMNodeContentWidget
 from nodeeditor.node_graphics_node import QDMGraphicsNode
@@ -14,6 +15,7 @@ from ui.trace_tree_widget.event_dialog import EventPicker
 
 if typing.TYPE_CHECKING:
     from ui.main_window import Scene
+
 
 class StateGraphicsNode(QDMGraphicsNode):
     def initSizes(self):
@@ -44,9 +46,12 @@ class StateGraphicsNode(QDMGraphicsNode):
         )
 
 
+NEWSTATECTR = count()
+
+
 class StateContent(QDMNodeContentWidget):
     def initUI(self):
-        self.edit = QLineEdit("new state", self)
+        self.edit = QLineEdit(f"new state {next(NEWSTATECTR)}", self)
         self.edit.setAlignment(Qt.AlignLeft)
         self.edit.setObjectName(self.node.content_label_objname)
 
@@ -175,6 +180,3 @@ class StateNode(Node):
 
         if event_picker.confirmed:
             event = event_picker.get_event()
-
-
-
