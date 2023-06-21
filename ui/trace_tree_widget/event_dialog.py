@@ -3,8 +3,17 @@ from dataclasses import dataclass
 
 from PyQt5 import QtGui
 from PyQt5.QtGui import QFont, QIntValidator
-from PyQt5.QtWidgets import QWidget, QVBoxLayout, QLayout, QLineEdit, QLabel, QPlainTextEdit, QDialog, QDialogButtonBox, \
-    QComboBox
+from PyQt5.QtWidgets import (
+    QWidget,
+    QVBoxLayout,
+    QLayout,
+    QLineEdit,
+    QLabel,
+    QPlainTextEdit,
+    QDialog,
+    QDialogButtonBox,
+    QComboBox,
+)
 from scenario import Event
 
 
@@ -40,11 +49,11 @@ class EventConfig(QWidget):
         self.event_name = event_name
 
         self.clear()
-        self.add_field(TextField('override env'))
+        self.add_field(TextField("override env"))
 
-        if event_name.endswith('relation-changed'):
-            self.add_field(IntField('remote unit id', 0))
-            self.add_field(StrField('remote application name', 'remote'))
+        if event_name.endswith("relation-changed"):
+            self.add_field(IntField("remote unit id", 0))
+            self.add_field(StrField("remote application name", "remote"))
 
     def _set_event_name(self, e):
         self.event_name = self._edit.text()
@@ -55,6 +64,7 @@ class EventConfig(QWidget):
 
 class Field(QWidget):
     name: str
+
     def get_value(self) -> typing.Any:
         raise NotImplementedError()
 
@@ -80,6 +90,7 @@ class IntField(Field):
 
         layout.addWidget(self.lineEdit)
         layout.addStretch()
+
     #
     # def setLabelWidth(self, width):
     #     self.label.setFixedWidth(width)
@@ -113,6 +124,7 @@ class StrField(Field):
 
         layout.addWidget(self.lineEdit)
         layout.addStretch()
+
     #
     # def setLabelWidth(self, width):
     #     self.label.setFixedWidth(width)
@@ -145,6 +157,7 @@ class TextField(Field):
 
         layout.addWidget(self.lineEdit)
         layout.addStretch()
+
     #
     # def setLabelWidth(self, width):
     #     self.label.setFixedWidth(width)
@@ -202,5 +215,7 @@ class EventPicker(QDialog):
     def get_event(self) -> EventSpec:
         return EventSpec(
             Event(name=self.event_config.event_name),
-            env=self.event_config.get_output()['override env']  # todo: parse as str:str dict
+            env=self.event_config.get_output()[
+                "override env"
+            ],  # todo: parse as str:str dict
         )

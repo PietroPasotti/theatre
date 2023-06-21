@@ -3,14 +3,13 @@ import sys
 
 import ops
 import typing
-from nodeeditor.node_editor_widget import NodeEditorWidget as _NodeEditorWidget
+
 from nodeeditor.node_editor_window import NodeEditorWindow
-from nodeeditor.node_scene import Scene as _Scene
 from nodeeditor.utils import dumpException
 from nodeeditor.utils import loadStylesheets
 from qtpy.QtCore import QSettings
 from qtpy.QtCore import Qt, QSignalMapper
-from qtpy.QtGui import QIcon, QKeySequence
+from qtpy.QtGui import QKeySequence
 from qtpy.QtWidgets import QApplication
 from qtpy.QtWidgets import (
     QMdiArea,
@@ -22,40 +21,41 @@ from qtpy.QtWidgets import (
 )
 
 from ui.helpers import get_icon
-from ui.trace_tree_widget.event_edge import EventEdge
 from ui.trace_inspector import TraceInspectorWidget
 from ui.trace_tree_widget.drag_listbox import QDMDragListbox
-from ui.trace_tree_widget.sub_window import TraceTreeEditorWidget
+from ui.trace_tree_widget.trace_tree_editor_widget import TraceTreeEditorWidget
+
+if typing.TYPE_CHECKING:
+    from nodeeditor.node_editor_widget import NodeEditorWidget
+
 
 # os.environ["QT_QPA_PLATFORM"] = "offscreen"
 
 # TODO: disable edgeIntersect functionality
 
 
-class Scene(_Scene):
-    """Scene class."""
-    # FIXME: Dynamically set by MainWindow
-    charm_type: typing.Optional[typing.Type[ops.CharmBase]]
-
-    def getEdgeClass(self):
-        return EventEdge
-
-
-class NodeEditorWidget(_NodeEditorWidget):
-    Scene_class = Scene
-    scene: Scene
-
-
 class TheatreMainWindow(NodeEditorWindow):
-    NodeEditorWidget_class = NodeEditorWidget
-    SHOW_MAXIMIZED = True
+    SHOW_MAXIMIZED = False
     RESTORE_ON_OPEN = True
-    FILE_DIALOG_TYPE = 'Graph (*.json);;All files (*)'
+    FILE_DIALOG_TYPE = "Graph (*.json);;All files (*)"
 
     def __init__(self):
         # todo figure out import from file/project
         class DummyCharm(ops.CharmBase):
-            pass
+            def __init__(self, framework: ops.Framework):
+                super().__init__(framework)
+                for event in self.on.events().values():
+                    framework.observe(event, self._on_event)
+
+            def _on_event(self, _):
+                opts = [
+                    ops.ActiveStatus(""),
+                    ops.BlockedStatus("whoops"),
+                    ops.WaitingStatus("..."),
+                ]
+                import random
+
+                self.unit.status = random.choice(opts)
 
         self.charm_type: typing.Optional[typing.Type[ops.CharmBase]] = DummyCharm
 
@@ -178,11 +178,12 @@ class TheatreMainWindow(NodeEditorWindow):
             triggered=self.about,
         )
 
-    def getCurrentNodeEditorWidget(self):
+    def getCurrentNodeEditorWidget(self) -> typing.Optional["NodeEditorWidget"]:
         """we're returning NodeEditorWidget here..."""
-        activeSubWindow = self.mdiArea.activeSubWindow()
-        if activeSubWindow:
-            return activeSubWindow.widget()
+        active_subwindow = self.mdiArea.activeSubWindow()
+        if active_subwindow:
+            print(type(active_subwindow))
+            return typing.cast("NodeEditorWidget", active_subwindow.widget())
         return None
 
     def getFileDialogDirectory(self):
@@ -192,16 +193,21 @@ class TheatreMainWindow(NodeEditorWindow):
         editor = self.getCurrentNodeEditorWidget()
 
         if editor is not None:
-            fname, _ = QFileDialog.getSaveFileName(self, 'Save graph to file',
-                                                   self.getFileDialogDirectory(),
-                                                   self.FILE_DIALOG_TYPE)
+            fname, _ = QFileDialog.getSaveFileName(
+                self,
+                "Save graph to file",
+                self.getFileDialogDirectory(),
+                self.FILE_DIALOG_TYPE,
+            )
             print(f"selected: {fname!r}")
             if not fname:
                 return False
 
             self.onBeforeSaveAs(editor, fname)
             editor.fileSave(fname)
-            self.statusBar().showMessage("Successfully saved as %s" % editor.filename, 5000)
+            self.statusBar().showMessage(
+                "Successfully saved as %s" % editor.filename, 5000
+            )
 
             # support for MDI app
             if hasattr(editor, "setTitle"):
@@ -386,15 +392,25 @@ class TheatreMainWindow(NodeEditorWindow):
         self.statusBar().showMessage("Ready")
 
     def create_new_trace_tree_tab(self, widget: TraceTreeEditorWidget = None):
-        trace_tree_editor = widget or TraceTreeEditorWidget(self.charm_type, self.mdiArea)
+        trace_tree_editor = widget or TraceTreeEditorWidget(
+            self.charm_type, self.mdiArea
+        )
         subwnd = self.mdiArea.addSubWindow(trace_tree_editor)
         self.mdiArea.setActiveSubWindow(subwnd)
         subwnd.setWindowIcon(self.empty_icon)
 
         # FIXME: horrible
         trace_tree_editor.scene.charm_type = self.charm_type
+        # state reevaluated --> (re)display in trace inspector
+        trace_tree_editor.state_node_changed.connect(
+            self._trace_inspector.on_node_changed
+        )
+        # click on trace tree editor --> display in trace inspector
+        trace_tree_editor.state_node_clicked.connect(self._trace_inspector.display)
 
-        trace_tree_editor.scene.history.addHistoryModifiedListener(self.update_edit_menu)
+        trace_tree_editor.scene.history.addHistoryModifiedListener(
+            self.update_edit_menu
+        )
         trace_tree_editor.add_close_event_listener(self.on_sub_window_close)
         return subwnd
 
@@ -423,7 +439,7 @@ class TheatreMainWindow(NodeEditorWindow):
 
         if self.RESTORE_ON_OPEN:
             settings = QSettings(self.name_company, self.name_product)
-            previous_open = settings.value('open', []) or []
+            previous_open = settings.value("open", []) or []
             for fname in previous_open:
                 self.open_if_not_already_open(fname)
 
@@ -433,7 +449,7 @@ class TheatreMainWindow(NodeEditorWindow):
 
         settings = QSettings(self.name_company, self.name_product)
         previous_open = [tab.filename for tab in self.mdiArea.subWindowList()]
-        settings.setValue('open', previous_open)
+        settings.setValue("open", previous_open)
 
 
 def show_main_window():

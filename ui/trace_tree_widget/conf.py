@@ -14,11 +14,7 @@ class StateSpec:
     icon: QIcon = None
 
 
-STATES = {
-    "null state": StateSpec(
-        State(),
-        get_icon('data_object')
-    )}
+STATES = {"null state": StateSpec(State(), get_icon("data_object"))}
 
 
 def get_state(name: str) -> StateSpec:

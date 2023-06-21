@@ -46,10 +46,7 @@ class QDMDragListbox(QListWidget):
             item = self.currentItem()
             name = item.data(Qt.UserRole + 1)
 
-            pixmap = item.data(Qt.UserRole).pixmap(
-                self._icon_size,
-                self._icon_size
-            )
+            pixmap = item.data(Qt.UserRole).pixmap(self._icon_size, self._icon_size)
 
             itemData = QByteArray()
             dataStream = QDataStream(itemData, QIODevice.WriteOnly)

@@ -2,21 +2,30 @@ import typing
 from itertools import count
 
 import scenario
+from PyQt5.QtWidgets import QVBoxLayout, QWidget
 from nodeeditor.node_content_widget import QDMNodeContentWidget
 from nodeeditor.node_graphics_node import QDMGraphicsNode
 from nodeeditor.node_node import Node
-from nodeeditor.node_socket import LEFT_CENTER, RIGHT_CENTER, Socket as _Socket, QDMGraphicsSocket
+from nodeeditor.node_socket import (
+    LEFT_CENTER,
+    RIGHT_CENTER,
+    Socket as _Socket,
+    QDMGraphicsSocket,
+)
 from nodeeditor.utils import dumpException
+from qtpy.QtCore import QEvent
 from qtpy.QtCore import QRectF
-from qtpy.QtCore import Qt
-from qtpy.QtGui import QImage
+from qtpy.QtCore import Qt, Signal
+from qtpy.QtGui import QImage, QIcon
 from qtpy.QtWidgets import QLineEdit
 
+from logger import logger
+from ui.helpers import get_icon
 from ui.trace_tree_widget.event_dialog import EventPicker
 from ui.trace_tree_widget.event_edge import EventEdge
 
 if typing.TYPE_CHECKING:
-    from ui.main_window import Scene
+    from ui.theatre_scene import TheatreScene
 
 
 class StateGraphicsNode(QDMGraphicsNode):
@@ -32,19 +41,24 @@ class StateGraphicsNode(QDMGraphicsNode):
 
     def initAssets(self):
         super().initAssets()
-        self.icons = QImage("icons/status_icons.png")
+        self.icon_ok = get_icon('stars')
+        self.icon_dirty = get_icon('flaky')
+        self.icon_invalid = get_icon('error')
 
     def paint(self, painter, QStyleOptionGraphicsItem, widget=None):
         super().paint(painter, QStyleOptionGraphicsItem, widget)
 
-        offset = 24.0
         if self.node.isDirty():
-            offset = 0.0
-        if self.node.isInvalid():
-            offset = 48.0
+            icon = self.icon_dirty
+        elif self.node.isInvalid():
+            icon = self.icon_invalid
+        else:
+            icon = self.icon_ok
 
+        rect = QRectF(-10, -10, 24.0, 24.0)
+        pxmp = icon.pixmap(34, 34)
         painter.drawImage(
-            QRectF(-10, -10, 24.0, 24.0), self.icons, QRectF(offset, 0, 24.0, 24.0)
+            rect, pxmp.toImage()
         )
 
 
@@ -52,30 +66,49 @@ NEWSTATECTR = count()
 
 
 class StateContent(QDMNodeContentWidget):
+    clicked = Signal()
+
+    def __init__(self, node: "Node", parent: QWidget = None, title: str = ""):
+        self._title = title
+        super().__init__(node, parent)
+
     def initUI(self):
-        self.edit = QLineEdit(f"new state {next(NEWSTATECTR)}", self)
+        """Sets up layouts and widgets to be rendered in :py:class:`~nodeeditor.node_graphics_node.QDMGraphicsNode` class."""
+        self.layout = QVBoxLayout()
+        self.layout.setContentsMargins(10, 10, 10, 10)
+        self.setLayout(self.layout)
+
+        self.edit = edit = QLineEdit(f"new state {next(NEWSTATECTR)}", self)
         self.edit.setAlignment(Qt.AlignLeft)
+        self.layout.addWidget(edit)
         self.edit.setObjectName(self.node.content_label_objname)
+
+    def set_title(self, title: str):
+        self._title = title
+        # self.title_label.setText(title)
 
     def serialize(self):
         res = super().serialize()
-        res['value'] = self.edit.text()
+        res["value"] = self.edit.text()
         return res
 
     def deserialize(self, data, hashmap={}):
         res = super().deserialize(data, hashmap)
         try:
-            value = data['value']
+            value = data["value"]
             self.edit.setText(value)
             return True & res
         except Exception as e:
             dumpException(e)
         return res
 
+    def mousePressEvent(self, e: QEvent):
+        self.clicked.emit()
+        e.accept()
+
 
 class GraphicsSocket(QDMGraphicsSocket):
-
-    def __init__(self, socket: 'Socket'):
+    def __init__(self, socket: "Socket"):
         super().__init__(socket)
         self.radius = 6
         self.outline_width = 1
@@ -86,7 +119,6 @@ class Socket(_Socket):
 
 
 class StateNode(Node):
-    icon = ""
     content_label = ""
     content_label_objname = "state_node_bg"
 
@@ -94,92 +126,151 @@ class StateNode(Node):
     NodeContent_class = StateContent
     Socket_class = Socket
 
-    def __init__(self, scene: "Scene", name="State", inputs=[2], outputs=[1]):
+    def __repr__(self):
+        return f"<StateNode {self.title, self.content.edit.text()}>"
+    __str__ = __repr__
+
+    def __init__(
+        self,
+        scene: "TheatreScene",
+        name="State",
+        inputs=[2],
+        outputs=[1],
+        on_value_changed: typing.Callable[["StateNode"], None] = None,
+        on_clicked: typing.Callable[["StateNode"], None] = None,
+        icon: QIcon = None,
+    ):
+        self._on_value_changed = on_value_changed  # signals!
+        self._on_clicked = on_clicked  # signals!
+
         super().__init__(scene, name, inputs, outputs)
-        self.name = name
+
+        self.icon: QIcon = icon or self._get_icon()
         self.value = None
-        self.scene = typing.cast("Scene", self.scene)
+        self.scene = typing.cast("TheatreScene", self.scene)
         self._is_dirty = True
 
         self.grNode.title_item.setParent(self.content)
 
+    @property
+    def description(self) -> str:
+        """User-editable description for this state."""
+        return self.content.edit.text()
+
+    def _get_icon(self) -> QIcon:
+        name = self.title
+        # todo icons per different types
+        if name == "start":
+            return get_icon("stars")
+        return get_icon("data_object")
+
     def initInnerClasses(self):
-        self.content = StateContent(self)
+        self.content = StateContent(self, title=self.title)
+        self.content.clicked.connect(self._on_content_clicked)
         self.grNode = StateGraphicsNode(self)
         self.content.edit.textChanged.connect(self.on_description_changed)
+
+    def _on_content_clicked(self):
+        self._on_clicked.emit(self)
 
     def initSettings(self):
         super().initSettings()
         self.input_socket_position = LEFT_CENTER
         self.output_socket_position = RIGHT_CENTER
 
-    def recompute_state(self) -> scenario.State:
-        """Compute the state in this node, based on previous node=state and edge=event"""
+    @property
+    def is_root(self) -> bool:
+        """Is this a root node?"""
+        return not self.inputs[0].edges
+
+    @property
+    def edge_in(self) -> EventEdge:
+        """The EventEdge that, combined with the parent state, gave this state."""
         try:
-            edge_in: EventEdge = self.inputs[0].edges[0]
-            parent: StateNode = edge_in.start_socket.node
-        except IndexError:
-            edge_in = None
-            parent = None
+            return self.inputs[0].edges[0]
+        except IndexError as e:
+            raise RuntimeError("root node has no edge_in.") from e
 
-        if not edge_in:
-            title = 'Null State'
+    def _reevaluate(self) -> scenario.State:
+        """Compute the state in this node, based on previous node=state and edge=event"""
+        logger.info(f'reevaluating {self}')
+
+        if self.is_root:
+            title = "Null State"
             state = scenario.State()
-            print(f"no edge in: {self} inited as null state (root)")
 
-        else:  # parent and edge in
+            logger.info(f"no edge in: {self} inited as null state (root)")
+
+        else:
+            edge_in = self.edge_in
+            parent = edge_in.start_node
+
             event_spec = edge_in.event_spec
-            title = 'State'
+            title = "State"
+            state_in = parent.eval()
+
+            if not isinstance(state_in, scenario.State):
+                raise RuntimeError(
+                    f'parent {parent} evaluation yielded something bad: {state_in}'
+                )
+
             state = scenario.trigger(
-                state=parent.eval(),
+                state=state_in,
                 event=event_spec.event,
                 charm_type=self.scene.charm_type,
+                meta={'name': 'dummy'}
             )
-            print(f"{self} recomputed state to {state}")
 
-        self.content.wdg_label.setText(title)
-        self.markDescendantsDirty()
-        self.evalChildren()
-        self.markInvalid(False)
+            logger.info(f"recomputed state on {self}")
+
+        self.content.set_title(title)
+        # first set our own value, otherwise evalchildren will try to fetch our eval()
+        # and cause recursive nightmares
         self.value = state
+        self.markInvalid(False)
+        self.markDirty(False)
 
-        # self.grNode.setToolTip("Connect all inputs")
+        self.markDescendantsDirty()
+        # self.evalChildren()
+        self.grNode.setToolTip(str(state))
+
         return state
 
     def eval(self):
         if not self.isDirty() and not self.isInvalid():
-            print(
-                " _> returning cached %s value:" % self.__class__.__name__, self.value
-            )
+            logger.info(f" _> returning cached {self} value")
             return self.value
 
-        try:
+        self.traceback = None
 
-            val = self.recompute_state()
+        try:
+            val = self._reevaluate()
+            # notify listeners of potential value change
+            if self._on_value_changed:
+                self._on_value_changed.emit(self)
             return val
-        except ValueError as e:
-            self.markInvalid()
-            self.grNode.setToolTip(str(e))
-            self.markDescendantsDirty()
         except Exception as e:
             self.markInvalid()
+            self.markDescendantsDirty()
             self.grNode.setToolTip(str(e))
-            dumpException(e)
+            self.traceback = e.__traceback__
+
+            logger.error(e)
 
     def on_description_changed(self, socket=None):
-        print("%s::on_description_changed" % self.__class__.__name__)
+        logger.info(f"description changed: {self}")
 
     def serialize(self):
         res = super().serialize()
-        res["name"] = self.name
-        res['value'] = self.content.edit.text()
+        res["name"] = self.title
+        res["value"] = self.content.edit.text()
         return res
 
     def deserialize(self, data, hashmap={}, restore_id=True):
         res = super().deserialize(data, hashmap, restore_id)
-        self.name = data['name']
+        self.title = data["name"]
         try:
-            value = data['value']
+            value = data["value"]
             self.content.edit.setText(value)
             return True & res
         except Exception as e:
@@ -192,3 +283,12 @@ class StateNode(Node):
 
         if event_picker.confirmed:
             event = event_picker.get_event()
+
+    def get_previous(self) -> typing.Optional["StateNode"]:
+        """The previous state, if any."""
+        return self.getInput()
+
+    def get_next(self) -> typing.Optional["StateNode"]:
+        """The next state, if any."""
+        outs = self.getOutputs()
+        return outs[0] if outs else None
