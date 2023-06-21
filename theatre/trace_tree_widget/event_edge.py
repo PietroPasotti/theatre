@@ -10,13 +10,13 @@ from nodeeditor.node_edge_validators import (
 from qtpy.QtWidgets import QLabel
 from qtpy.QtGui import QIcon
 
-from ui.helpers import get_icon
-from ui.trace_tree_widget.event_dialog import EventSpec
+from theatre.helpers import get_icon
+from theatre.trace_tree_widget.event_dialog import EventSpec
 
 if typing.TYPE_CHECKING:
-    from ui.theatre_scene import TheatreScene
+    from theatre.theatre_scene import TheatreScene
     from nodeeditor.node_socket import Socket
-    from ui.trace_tree_widget.state_node import StateNode
+    from theatre.trace_tree_widget.state_node import StateNode
 
 
 class EventNameLabel(QLabel):

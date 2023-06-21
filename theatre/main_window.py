@@ -1,9 +1,8 @@
 import os
 import sys
-
-import ops
 import typing
 
+import ops
 from nodeeditor.node_editor_window import NodeEditorWindow
 from nodeeditor.utils import dumpException
 from nodeeditor.utils import loadStylesheets
@@ -20,10 +19,11 @@ from qtpy.QtWidgets import (
     QFileDialog,
 )
 
-from ui.helpers import get_icon
-from ui.trace_inspector import TraceInspectorWidget
-from ui.trace_tree_widget.drag_listbox import QDMDragListbox
-from ui.trace_tree_widget.trace_tree_editor_widget import TraceTreeEditorWidget
+from logger import logger
+from theatre.helpers import get_icon
+from theatre.trace_inspector import TraceInspectorWidget
+from theatre.trace_tree_widget.drag_listbox import QDMDragListbox
+from theatre.trace_tree_widget.trace_tree_editor_widget import TraceTreeEditorWidget
 
 if typing.TYPE_CHECKING:
     from nodeeditor.node_editor_widget import NodeEditorWidget
@@ -109,8 +109,20 @@ class TheatreMainWindow(NodeEditorWindow):
         self.update_menus()
 
         self.readSettings()
-        if not self.mdiArea.currentSubWindow():
-            self.create_new_graph()
+
+        if not self.getCurrentNodeEditorWidget():
+            # open a clean graph
+
+            # FIXME: this horrible workaround
+            new_0: TraceTreeEditorWidget = self.onFileNew()
+            self.onFileNew()  # creating another one somehow activates the menus.
+            new_0.close()  # remove the first one and we're left with a functioning window.
+            # WTF
+
+            if not self.getCurrentNodeEditorWidget():
+                # we just activated it but it's not active.
+                # this means all the menus are disabled while they should be enabled.
+                logger.debug("buggity-bug! This should not happen.")
 
         self.setTitle()
 
@@ -179,10 +191,8 @@ class TheatreMainWindow(NodeEditorWindow):
         )
 
     def getCurrentNodeEditorWidget(self) -> typing.Optional["NodeEditorWidget"]:
-        """we're returning NodeEditorWidget here..."""
         active_subwindow = self.mdiArea.activeSubWindow()
         if active_subwindow:
-            print(type(active_subwindow))
             return typing.cast("NodeEditorWidget", active_subwindow.widget())
         return None
 
@@ -233,18 +243,16 @@ class TheatreMainWindow(NodeEditorWindow):
         if self.maybeSave():
             editor = self.getCurrentNodeEditorWidget()
             if not editor:
-                return self.create_new_graph()
-            editor.fileNew()
+                new_graph = self.create_new_graph()
+                self.setTitle()
+                return new_graph
             self.setTitle()
 
     def create_new_graph(self):
         try:
-            subwnd = self.create_new_trace_tree_tab()
-            subwnd.widget().fileNew()
-            subwnd.showMaximized()
-            self.setTitle()
+            return self.create_new_trace_tree_tab()
         except Exception as e:
-            dumpException(e)
+            logger.error(e, exc_info=True)
 
     def open_if_not_already_open(self, fname: str):
         existing = self.find_mdi_child(fname)
@@ -255,8 +263,7 @@ class TheatreMainWindow(NodeEditorWindow):
             editor_widget = TraceTreeEditorWidget(self.charm_type, self.mdiArea)
             if editor_widget.fileLoad(fname):
                 self.statusBar().showMessage("File %s loaded" % fname, 5000)
-                tab = self.create_new_trace_tree_tab(editor_widget)
-                tab.showMaximized()
+                self.create_new_trace_tree_tab(editor_widget)
             else:
                 editor_widget.close()
 
@@ -396,8 +403,8 @@ class TheatreMainWindow(NodeEditorWindow):
             self.charm_type, self.mdiArea
         )
         subwnd = self.mdiArea.addSubWindow(trace_tree_editor)
-        self.mdiArea.setActiveSubWindow(subwnd)
         subwnd.setWindowIcon(self.empty_icon)
+        self.mdiArea.setActiveSubWindow(subwnd)  # this doesn't always work
 
         # FIXME: horrible
         trace_tree_editor.scene.charm_type = self.charm_type
@@ -412,6 +419,9 @@ class TheatreMainWindow(NodeEditorWindow):
             self.update_edit_menu
         )
         trace_tree_editor.add_close_event_listener(self.on_sub_window_close)
+
+        subwnd.widget().fileNew()
+        subwnd.showMaximized()
         return subwnd
 
     def on_sub_window_close(self, widget, event):

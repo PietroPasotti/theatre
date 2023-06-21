@@ -1,4 +1,6 @@
+import inspect
 import typing
+from dataclasses import dataclass
 from itertools import count
 
 import scenario
@@ -20,12 +22,12 @@ from qtpy.QtGui import QImage, QIcon
 from qtpy.QtWidgets import QLineEdit
 
 from logger import logger
-from ui.helpers import get_icon
-from ui.trace_tree_widget.event_dialog import EventPicker
-from ui.trace_tree_widget.event_edge import EventEdge
+from theatre.helpers import get_icon
+from theatre.trace_tree_widget.event_dialog import EventPicker
+from theatre.trace_tree_widget.event_edge import EventEdge
 
 if typing.TYPE_CHECKING:
-    from ui.theatre_scene import TheatreScene
+    from theatre.theatre_scene import TheatreScene
 
 
 class StateGraphicsNode(QDMGraphicsNode):
@@ -83,10 +85,6 @@ class StateContent(QDMNodeContentWidget):
         self.layout.addWidget(edit)
         self.edit.setObjectName(self.node.content_label_objname)
 
-    def set_title(self, title: str):
-        self._title = title
-        # self.title_label.setText(title)
-
     def serialize(self):
         res = super().serialize()
         res["value"] = self.edit.text()
@@ -118,6 +116,14 @@ class Socket(_Socket):
     Socket_GR_Class = GraphicsSocket
 
 
+
+@dataclass
+class StateNodeOutput:
+    state: scenario.State = None
+    logs: str = None
+    traceback: inspect.Traceback = None
+
+
 class StateNode(Node):
     content_label = ""
     content_label_objname = "state_node_bg"
@@ -146,11 +152,12 @@ class StateNode(Node):
         super().__init__(scene, name, inputs, outputs)
 
         self.icon: QIcon = icon or self._get_icon()
-        self.value = None
+        self.value: typing.Optional[StateNodeOutput] = None
         self.scene = typing.cast("TheatreScene", self.scene)
         self._is_dirty = True
 
         self.grNode.title_item.setParent(self.content)
+        self._update_title()
 
     @property
     def description(self) -> str:
@@ -167,7 +174,7 @@ class StateNode(Node):
     def initInnerClasses(self):
         self.content = StateContent(self, title=self.title)
         self.content.clicked.connect(self._on_content_clicked)
-        self.grNode = StateGraphicsNode(self)
+        self.grNode = grn = StateGraphicsNode(self)
         self.content.edit.textChanged.connect(self.on_description_changed)
 
     def _on_content_clicked(self):
@@ -191,52 +198,46 @@ class StateNode(Node):
         except IndexError as e:
             raise RuntimeError("root node has no edge_in.") from e
 
-    def _reevaluate(self) -> scenario.State:
+    def get_title(self):
+        if self.is_root:
+            return "Null State (root)"
+        else:
+            return "State"
+
+    def _update_title(self):
+        self.grNode.title = self.get_title()
+
+    def _evaluate(self) -> scenario.State:
         """Compute the state in this node, based on previous node=state and edge=event"""
         logger.info(f'reevaluating {self}')
 
         if self.is_root:
-            title = "Null State"
-            state = scenario.State()
-
             logger.info(f"no edge in: {self} inited as null state (root)")
+            return scenario.State()
 
-        else:
-            edge_in = self.edge_in
-            parent = edge_in.start_node
+        edge_in = self.edge_in
+        parent = edge_in.start_node
 
-            event_spec = edge_in.event_spec
-            title = "State"
-            state_in = parent.eval()
+        event_spec = edge_in.event_spec
+        state_in = parent.eval()
 
-            if not isinstance(state_in, scenario.State):
-                raise RuntimeError(
-                    f'parent {parent} evaluation yielded something bad: {state_in}'
-                )
-
-            state = scenario.trigger(
-                state=state_in,
-                event=event_spec.event,
-                charm_type=self.scene.charm_type,
-                meta={'name': 'dummy'}
+        if not isinstance(state_in, StateNodeOutput):
+            raise RuntimeError(
+                f'parent {parent} evaluation yielded something bad: {state_in}'
             )
 
-            logger.info(f"recomputed state on {self}")
+        state = scenario.trigger(
+            state=state_in.state,
+            event=event_spec.event,
+            charm_type=self.scene.charm_type,
+            meta={'name': 'dummy'}
+        )
 
-        self.content.set_title(title)
-        # first set our own value, otherwise evalchildren will try to fetch our eval()
-        # and cause recursive nightmares
-        self.value = state
-        self.markInvalid(False)
-        self.markDirty(False)
-
-        self.markDescendantsDirty()
-        # self.evalChildren()
-        self.grNode.setToolTip(str(state))
+        logger.info(f"recomputed state on {self}")
 
         return state
 
-    def eval(self):
+    def eval(self) -> StateNodeOutput:
         if not self.isDirty() and not self.isInvalid():
             logger.info(f" _> returning cached {self} value")
             return self.value
@@ -244,18 +245,36 @@ class StateNode(Node):
         self.traceback = None
 
         try:
-            val = self._reevaluate()
+            state = self._evaluate()
+            # todo attach logs
+            value = StateNodeOutput(state=state)
+            self.markInvalid(False)
+            self.markDirty(False)
+
+            self.grNode.setToolTip(str(state))
+
             # notify listeners of potential value change
             if self._on_value_changed:
                 self._on_value_changed.emit(self)
-            return val
+
         except Exception as e:
             self.markInvalid()
             self.markDescendantsDirty()
             self.grNode.setToolTip(str(e))
-            self.traceback = e.__traceback__
-
+            self.traceback = tb = e.__traceback__
             logger.error(e)
+            value = StateNodeOutput(
+                traceback=tb
+            )
+
+        self.value = value
+        # first set our own value, otherwise evalchildren will try to fetch our eval()
+        # and cause recursive nightmares
+
+        # self.evalChildren()
+        self.markDescendantsDirty()
+
+        return self.value
 
     def on_description_changed(self, socket=None):
         logger.info(f"description changed: {self}")

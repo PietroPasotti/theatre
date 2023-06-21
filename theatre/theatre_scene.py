@@ -4,8 +4,8 @@ import ops
 from qtpy.QtCore import QObject, Signal
 from nodeeditor.node_scene import Scene as _Scene
 
-from ui.trace_tree_widget.event_edge import EventEdge
-from ui.trace_tree_widget.state_node import StateNode
+from theatre.trace_tree_widget.event_edge import EventEdge
+from theatre.trace_tree_widget.state_node import StateNode
 
 
 class TheatreScene(QObject, _Scene):

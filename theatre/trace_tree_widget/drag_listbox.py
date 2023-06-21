@@ -3,8 +3,8 @@ from qtpy.QtCore import QSize, Qt, QByteArray, QDataStream, QMimeData, QIODevice
 from qtpy.QtGui import QDrag
 from qtpy.QtWidgets import QListWidget, QAbstractItemView, QListWidgetItem
 
-from ui.helpers import get_icon
-from ui.trace_tree_widget.conf import STATES
+from theatre.helpers import get_icon
+from theatre.trace_tree_widget.conf import STATES
 
 
 class QDMDragListbox(QListWidget):

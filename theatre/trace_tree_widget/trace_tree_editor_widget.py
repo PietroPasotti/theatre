@@ -17,11 +17,11 @@ from qtpy.QtGui import QPixmap
 from qtpy.QtWidgets import QAction, QGraphicsProxyWidget, QMenu
 
 from logger import logger
-from ui.theatre_scene import TheatreScene
-from ui.trace_tree_widget.conf import STATES, LISTBOX_MIMETYPE
-from ui.trace_tree_widget.event_dialog import EventPicker, EventSpec
-from ui.trace_tree_widget.event_edge import EventEdge
-from ui.trace_tree_widget.state_node import (
+from theatre.theatre_scene import TheatreScene
+from theatre.trace_tree_widget.conf import STATES, LISTBOX_MIMETYPE
+from theatre.trace_tree_widget.event_dialog import EventPicker, EventSpec
+from theatre.trace_tree_widget.event_edge import EventEdge
+from theatre.trace_tree_widget.state_node import (
     StateNode,
     GraphicsSocket,
     Socket,
@@ -151,6 +151,7 @@ class TraceTreeEditorWidget(NodeEditorWidget):
             dragging.drag_start_socket = new_origin
             dragging.drag_edge.grEdge.setSource(x, y)
             dragging.drag_edge.grEdge.update()
+            new_state_node._update_title()
 
         else:
             dragging.edgeDragEnd(None)
