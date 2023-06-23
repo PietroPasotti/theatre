@@ -20,7 +20,7 @@ from qtpy.QtWidgets import (
 )
 
 from logger import logger
-from theatre.helpers import get_icon, toggle_visible
+from theatre.helpers import get_icon, toggle_visible, show_error_dialog
 from theatre.trace_inspector import TraceInspectorWidget
 from theatre.trace_tree_widget.drag_listbox import QDMDragListbox
 from theatre.trace_tree_widget.trace_tree_editor_widget import NodeEditorWidget
@@ -188,7 +188,7 @@ class TheatreMainWindow(NodeEditorWindow):
         )
 
         self.actToggleStatesView = QAction(
-            "Show Trace Lib",
+            "Show &Trace Lib",
             self,
             statusTip="Toggle the visibility of the trace library.",
             triggered = self.toggle_states,
@@ -204,11 +204,18 @@ class TheatreMainWindow(NodeEditorWindow):
         )
 
         self.actToggleTraceInspector = QAction(
-            "Show Trace Inspector",
+            "Show Trace &Inspector",
             self,
             statusTip="Toggle the visibility of the trace inspector widget.",
             triggered = self._trace_inspector.toggle,
             checkable=True,
+        )
+
+        self.actNewState = QAction(
+            "New State",
+            self,
+            statusTip="Create a new custom state.",
+            triggered = self.on_new_custom_state,
         )
 
     def getCurrentNodeEditorWidget(self) -> typing.Optional["NodeEditorWidget"]:
@@ -220,6 +227,13 @@ class TheatreMainWindow(NodeEditorWindow):
     @property
     def current_node_editor(self):
         return self.getCurrentNodeEditorWidget()
+
+    def on_new_custom_state(self):
+        editor = self.current_node_editor
+        if not editor:
+            show_error_dialog(self, "Open a node editor first.")
+            return
+        editor.create_new_custom_state()
 
     def getFileDialogDirectory(self):
         return ""
@@ -340,6 +354,7 @@ class TheatreMainWindow(NodeEditorWindow):
         self.actCascade.setEnabled(hasMdiChild)
         self.actNext.setEnabled(hasMdiChild)
         self.actPrevious.setEnabled(hasMdiChild)
+        self.actNewState.setEnabled(hasMdiChild)
 
         self.update_edit_menu()
 

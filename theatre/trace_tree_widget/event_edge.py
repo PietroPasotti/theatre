@@ -107,7 +107,7 @@ class EventEdge(_Edge):
     ) -> bool:
         evt_spec = data.pop("event_spec")
         if evt_spec:
-            self.set_event_spec(EventSpec(evt_spec))
+            self.set_event_spec(EventSpec(**evt_spec))
         return super().deserialize(data, hashmap, restore_id, *args, **kwargs)
 
 

@@ -1,3 +1,3 @@
 qtpy==2.3.1
-ops-scenario
+ops-scenario @ git+https://github.com/canonical/ops-scenario@4.0
 nodeeditor==0.9.13

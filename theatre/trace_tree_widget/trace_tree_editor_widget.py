@@ -15,12 +15,14 @@ from qtpy.QtGui import QMouseEvent
 from qtpy.QtGui import QPixmap
 from qtpy.QtWidgets import QAction, QGraphicsProxyWidget, QMenu
 from qtpy.QtWidgets import QVBoxLayout
+from scenario import State
 
 from logger import logger
 from theatre.theatre_scene import TheatreScene
 from theatre.trace_tree_widget.conf import STATES, LISTBOX_MIMETYPE
 from theatre.trace_tree_widget.event_dialog import EventPicker, EventSpec
 from theatre.trace_tree_widget.event_edge import EventEdge
+from theatre.trace_tree_widget.new_state_dialog import NewStateDialog, StateIntent
 from theatre.trace_tree_widget.state_node import (
     StateNode,
     GraphicsSocket,
@@ -40,6 +42,29 @@ def choose_event(parent=None) -> typing.Optional[EventSpec]:
         return
 
     return event_picker.get_event()
+
+def choose_event(parent=None) -> typing.Optional[EventSpec]:
+    event_picker = EventPicker(parent)
+    event_picker.exec()
+
+    if not event_picker.confirmed:
+        logger.info("event picker aborted")
+        return
+
+    return event_picker.get_event()
+
+
+
+
+def get_new_custom_state(parent=None) -> typing.Optional[StateIntent]:
+    dialog = NewStateDialog(parent)
+    dialog.exec()
+
+    if not dialog.confirmed:
+        logger.info("new state dialog aborted")
+        return
+
+    return dialog.finalize()
 
 
 class GraphicsView(QDMGraphicsView):
@@ -306,14 +331,28 @@ class NodeEditorWidget(_NodeEditorWidget):
         new_state_node.grNode.onSelected()
 
     def _on_background_context_menu(self, event):
-        context_menu = QMenu(self)
+        menu = QMenu(self)
+
+        new_state = QAction(
+            "New State",
+            self,
+            statusTip="Create a new custom state.",
+            triggered = self.create_new_custom_state,
+        )
+        menu.addAction(new_state)
+
         keys = list(STATES.keys())
         keys.sort()
         for key in keys:
-            context_menu.addAction(self.state_actions[key])
+            menu.addAction(self.state_actions[key])
 
-        action = context_menu.exec_(self.mapToGlobal(event.pos()))
+        action = menu.exec_(self.mapToGlobal(event.pos()))
 
         if action is not None:
             node = create_new_state(scene=self.scene, view=self.view, pos=event.pos())
             self.scene.history.storeHistory("Created %s" % node.__class__.__name__)
+
+    def create_new_custom_state(self):
+        state_intent = get_new_custom_state(self)
+        print(f'created new state! {state_intent}')
+        # self.event_created.emit(state_intent)
