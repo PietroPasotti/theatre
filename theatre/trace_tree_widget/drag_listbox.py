@@ -1,3 +1,5 @@
+# Copyright 2022 Canonical Ltd.
+# See LICENSE file for licensing details.
 from nodeeditor.utils import dumpException
 from qtpy.QtCore import QSize, Qt, QByteArray, QDataStream, QMimeData, QIODevice, QPoint
 from qtpy.QtGui import QDrag

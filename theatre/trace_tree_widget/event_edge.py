@@ -1,3 +1,5 @@
+# Copyright 2022 Canonical Ltd.
+# See LICENSE file for licensing details.
 import typing
 from dataclasses import asdict
 
