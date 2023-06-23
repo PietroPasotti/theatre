@@ -20,10 +20,10 @@ from qtpy.QtWidgets import (
 )
 
 from logger import logger
-from theatre.helpers import get_icon
+from theatre.helpers import get_icon, toggle_visible
 from theatre.trace_inspector import TraceInspectorWidget
 from theatre.trace_tree_widget.drag_listbox import QDMDragListbox
-from theatre.trace_tree_widget.trace_tree_editor_widget import TraceTreeEditorWidget
+from theatre.trace_tree_widget.trace_tree_editor_widget import NodeEditorWidget
 
 if typing.TYPE_CHECKING:
     from nodeeditor.node_editor_widget import NodeEditorWidget
@@ -89,7 +89,7 @@ class TheatreMainWindow(NodeEditorWindow):
         self.windowMapper.mapped[QWidget].connect(self.set_active_subwindow)
 
         self._states = states = QDMDragListbox(self)
-        self._states_dock = states_dock = QDockWidget("States")
+        self._states_dock = states_dock = QDockWidget("Library")
         states_dock.setWidget(states)
         states_dock.setFloating(False)
         self.addDockWidget(Qt.RightDockWidgetArea, states_dock)
@@ -110,16 +110,16 @@ class TheatreMainWindow(NodeEditorWindow):
 
         self.readSettings()
 
-        if not self.getCurrentNodeEditorWidget():
+        if not self.current_node_editor:
             # open a clean graph
 
             # FIXME: this horrible workaround
-            new_0: TraceTreeEditorWidget = self.onFileNew()
+            new_0: NodeEditorWidget = self.onFileNew()
             self.onFileNew()  # creating another one somehow activates the menus.
             new_0.close()  # remove the first one and we're left with a functioning window.
             # WTF
 
-            if not self.getCurrentNodeEditorWidget():
+            if not self.current_node_editor:
                 # we just activated it but it's not active.
                 # this means all the menus are disabled while they should be enabled.
                 logger.debug("buggity-bug! This should not happen.")
@@ -180,14 +180,35 @@ class TheatreMainWindow(NodeEditorWindow):
             triggered=self.mdiArea.activatePreviousSubWindow,
         )
 
-        self.actSeparator = QAction(self)
-        self.actSeparator.setSeparator(True)
-
         self.actAbout = QAction(
             "&About",
             self,
             statusTip="Show the application's About box",
             triggered=self.about,
+        )
+
+        self.actToggleStatesView = QAction(
+            "Show Trace Lib",
+            self,
+            statusTip="Toggle the visibility of the trace library.",
+            triggered = self.toggle_states,
+            checkable=True,
+        )
+
+        self.actToggleScenarioLogs = QAction(
+            "Show scenario logs",
+            self,
+            statusTip="Toggle the visibility of scenario logs in trace inspector/logs.",
+            triggered = self._trace_inspector.node_view.logs_view.scenario_logs_view.toggle,
+            checkable=True,
+        )
+
+        self.actToggleTraceInspector = QAction(
+            "Show Trace Inspector",
+            self,
+            statusTip="Toggle the visibility of the trace inspector widget.",
+            triggered = self._trace_inspector.toggle,
+            checkable=True,
         )
 
     def getCurrentNodeEditorWidget(self) -> typing.Optional["NodeEditorWidget"]:
@@ -196,11 +217,15 @@ class TheatreMainWindow(NodeEditorWindow):
             return typing.cast("NodeEditorWidget", active_subwindow.widget())
         return None
 
+    @property
+    def current_node_editor(self):
+        return self.getCurrentNodeEditorWidget()
+
     def getFileDialogDirectory(self):
         return ""
 
     def onFileSaveAs(self):
-        editor = self.getCurrentNodeEditorWidget()
+        editor = self.current_node_editor
 
         if editor is not None:
             fname, _ = QFileDialog.getSaveFileName(
@@ -241,7 +266,7 @@ class TheatreMainWindow(NodeEditorWindow):
     def onFileNew(self):
         """Hande File New operation"""
         if self.maybeSave():
-            editor = self.getCurrentNodeEditorWidget()
+            editor = self.current_node_editor
             if not editor:
                 new_graph = self.create_new_graph()
                 self.setTitle()
@@ -260,7 +285,7 @@ class TheatreMainWindow(NodeEditorWindow):
             self.mdiArea.setActiveSubWindow(existing)
         else:
             # we need to create new subWindow and open the file
-            editor_widget = TraceTreeEditorWidget(self.charm_type, self.mdiArea)
+            editor_widget = NodeEditorWidget(self.charm_type, self.mdiArea)
             if editor_widget.fileLoad(fname):
                 self.statusBar().showMessage("File %s loaded" % fname, 5000)
                 self.create_new_trace_tree_tab(editor_widget)
@@ -285,10 +310,7 @@ class TheatreMainWindow(NodeEditorWindow):
     def about(self):
         QMessageBox.about(
             self,
-            "About Calculator NodeEditor Example",
-            "The <b>Calculator NodeEditor</b> example demonstrates how to write multiple "
-            "document interface applications using PyQt5 and NodeEditor. For more information visit: "
-            "<a href='https://www.blenderfreak.com/'>www.BlenderFreak.com</a>",
+            "This is awesome!",
         )
 
     def createMenus(self):
@@ -306,7 +328,7 @@ class TheatreMainWindow(NodeEditorWindow):
         self.editMenu.aboutToShow.connect(self.update_edit_menu)
 
     def update_menus(self):
-        active = self.getCurrentNodeEditorWidget()
+        active = self.current_node_editor
 
         hasMdiChild = active is not None
 
@@ -318,14 +340,13 @@ class TheatreMainWindow(NodeEditorWindow):
         self.actCascade.setEnabled(hasMdiChild)
         self.actNext.setEnabled(hasMdiChild)
         self.actPrevious.setEnabled(hasMdiChild)
-        self.actSeparator.setVisible(hasMdiChild)
 
         self.update_edit_menu()
 
     def update_edit_menu(self):
         try:
             # print("update Edit Menu")
-            active = self.getCurrentNodeEditorWidget()
+            active = self.current_node_editor
             hasMdiChild = active is not None
 
             self.actPaste.setEnabled(hasMdiChild)
@@ -340,32 +361,34 @@ class TheatreMainWindow(NodeEditorWindow):
             dumpException(e)
 
     def update_window_menu(self):
-        self.windowMenu.clear()
+        menu = self.windowMenu
+        menu.clear()
 
-        toolbar_nodes = self.windowMenu.addAction("Toggle States")
-        toolbar_nodes.setCheckable(True)
-        toolbar_nodes.triggered.connect(self.toggle_states_dock)
-        toolbar_nodes.setChecked(self._states_dock.isVisible())
+        menu.addAction(self.actToggleStatesView)
+        self.actToggleStatesView.setChecked(self._states_dock.isVisible())
 
-        toolbar_trace_view = self.windowMenu.addAction("Toggle Trace View")
-        toolbar_trace_view.setCheckable(True)
-        toolbar_trace_view.triggered.connect(self.toggle_trace_view_dock)
-        toolbar_trace_view.setChecked(self._trace_inspector_dock.isVisible())
+        menu.addAction(self.actToggleTraceInspector)
+        self.actToggleTraceInspector.setChecked(self._trace_inspector_dock.isVisible())
 
-        self.windowMenu.addSeparator()
+        menu.addAction(self.actToggleScenarioLogs)
+        self.actToggleScenarioLogs.setChecked(
+            self._trace_inspector.node_view.logs_view.scenario_logs_view.isVisible()
+        )
 
-        self.windowMenu.addAction(self.actClose)
-        self.windowMenu.addAction(self.actCloseAll)
-        self.windowMenu.addSeparator()
-        self.windowMenu.addAction(self.actTile)
-        self.windowMenu.addAction(self.actCascade)
-        self.windowMenu.addSeparator()
-        self.windowMenu.addAction(self.actNext)
-        self.windowMenu.addAction(self.actPrevious)
-        self.windowMenu.addAction(self.actSeparator)
+        menu.addSeparator()
+
+        menu.addAction(self.actClose)
+        menu.addAction(self.actCloseAll)
+        menu.addSeparator()
+        menu.addAction(self.actTile)
+        menu.addAction(self.actCascade)
+        menu.addSeparator()
+        menu.addAction(self.actNext)
+        menu.addAction(self.actPrevious)
 
         windows = self.mdiArea.subWindowList()
-        self.actSeparator.setVisible(len(windows) != 0)
+        if windows:
+            menu.addSeparator()
 
         for i, window in enumerate(windows):
             child = window.widget()
@@ -374,23 +397,15 @@ class TheatreMainWindow(NodeEditorWindow):
             if i < 9:
                 text = "&" + text
 
-            action = self.windowMenu.addAction(text)
+            action = menu.addAction(text)
             action.setCheckable(True)
-            action.setChecked(child is self.getCurrentNodeEditorWidget())
+            action.setChecked(child is self.current_node_editor)
             action.triggered.connect(self.windowMapper.map)
             self.windowMapper.setMapping(action, window)
 
-    def toggle_states_dock(self):
-        if self._states_dock.isVisible():
-            self._states_dock.hide()
-        else:
-            self._states_dock.show()
-
-    def toggle_trace_view_dock(self):
-        if self._trace_inspector.isVisible():
-            self._trace_inspector.hide()
-        else:
-            self._trace_inspector.show()
+    def toggle_states(self):
+        # we don't subclass the states dock yet.
+        toggle_visible(self._states_dock)
 
     def create_toolbars(self):
         pass
@@ -398,8 +413,8 @@ class TheatreMainWindow(NodeEditorWindow):
     def create_status_bar(self):
         self.statusBar().showMessage("Ready")
 
-    def create_new_trace_tree_tab(self, widget: TraceTreeEditorWidget = None):
-        trace_tree_editor = widget or TraceTreeEditorWidget(
+    def create_new_trace_tree_tab(self, widget: NodeEditorWidget = None):
+        trace_tree_editor = widget or NodeEditorWidget(
             self.charm_type, self.mdiArea
         )
         subwnd = self.mdiArea.addSubWindow(trace_tree_editor)

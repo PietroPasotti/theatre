@@ -12,7 +12,8 @@ from qtpy.QtWidgets import QListView
 from qtpy.QtWidgets import QSplitter
 from qtpy.QtWidgets import QTreeView
 
-from theatre.helpers import show_error_dialog, get_icon, get_color
+from logger import logger
+from theatre.helpers import get_icon, get_color, toggle_visible
 from theatre.trace_tree_widget.state_node import StateNode, StateNodeOutput
 
 if typing.TYPE_CHECKING:
@@ -30,7 +31,7 @@ def get_trace(state: StateNode) -> _Trace:
 
 class TraceView(QListView):
     selection_changed = Signal(StateNode)
-    _invalid_state_color = 'pastel_red'
+    _invalid_state_color = 'pastel red'
 
     def __init__(self, parent) -> None:
         super().__init__(parent)
@@ -82,33 +83,88 @@ class TraceView(QListView):
             model.appendRow(self._as_state_item(state))
 
 
+class StateNodeUnsetError(RuntimeError):
+    pass
+
+class NoStateError(RuntimeError):
+    pass
+
+
 class TextView(QTextEdit):
+    EMPTY_MSG = "Nothing to display. State evaluation failed."
+    TOOLTIP = ""
+
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
-        self._state_node = None
+        self._state_node: StateNode = None
         self.setReadOnly(True)
+        self.setToolTip(self.TOOLTIP)
 
     def display(self, state_node: StateNode):
         self._state_node = state_node
         self.update_contents()
 
     def generate_contents(self) -> str:
+        """Return a string or raise NoContents"""
         raise NotImplementedError("abstract method")
 
     def update_contents(self):
-        self.setText(self.generate_contents())
+        try:
+            contents = self.generate_contents()
+        except NoStateError:
+            contents = self.EMPTY_MSG
+        self.setText(contents)
 
     @property
     def node_output(self) -> StateNodeOutput:
         if self._state_node is None:
-            raise RuntimeError('state node is unset')
+            raise StateNodeUnsetError()
         out = self._state_node.eval()
+        if not out.state:
+            raise NoStateError()
         return out
 
+    def toggle(self):
+        return toggle_visible(self)
 
-class LogsView(TextView):
+
+class ScenarioLogsView(TextView):
+    TOOLTIP = 'scenario.Context.run() logging output'
+
     def generate_contents(self):
         return self.node_output.logs
+
+
+class CharmLogsView(TextView):
+    TOOLTIP = 'charm execution juju-log output'
+
+    def generate_contents(self):
+        juju_log = self.node_output.state.juju_log
+        return '\n'.join(' '.join(line) for line in juju_log)
+
+
+class LogsView(QSplitter):
+    def __init__(self, *__args):
+        super().__init__(*__args)
+        self.setOrientation(Qt.Vertical)
+
+        self.charm_logs_view = clogsview = CharmLogsView(self)
+        self.scenario_logs_view = slogsview = ScenarioLogsView(self)
+
+        self.addWidget(clogsview)
+        self.addWidget(slogsview)
+        self.setSizes([80, 20])
+
+    def show_scenario_logs(self, show: bool = True):
+        self.scenario_logs_view.setVisible(show)
+
+    def update_contents(self):
+        self.charm_logs_view.update_contents()
+        self.scenario_logs_view.update_contents()
+
+    def display(self, state_node: StateNode):
+        self.charm_logs_view.display(state_node)
+        self.scenario_logs_view.display(state_node)
 
 
 class RawStateView(TextView):
@@ -151,13 +207,6 @@ class StateView(QTreeView):
 
         model.appendRow(status_item)
 
-    def _on_fire_event(self, _=None):
-        if not self._state_node:
-            show_error_dialog(self, "no current statenode selected")
-            return
-
-        # todo: event emission dialog
-
 
 class NodeView(QTabWidget):
     def __init__(self, parent=None) -> None:
@@ -181,6 +230,10 @@ class NodeView(QTabWidget):
         self.raw_state_view.update_contents()
 
     def display(self, state_node: StateNode):
+        if self.is_displayed(state_node):
+            logger.info(f'ignored display: state node {state_node} already in NodeView')
+            return
+
         self._displayed = state_node
 
         self.state_view.display(state_node)
@@ -199,6 +252,9 @@ class TraceInspectorWidget(QSplitter):
         self.addWidget(trace_view)
         self.addWidget(node_view)
         self.setSizes([20, 80])
+
+    def toggle(self):
+        toggle_visible(self)
 
     def display(self, state_node: StateNode):
         trace = get_trace(state_node)

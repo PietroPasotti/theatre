@@ -1,10 +1,10 @@
+import contextlib
 import inspect
 import typing
 from dataclasses import dataclass
 from itertools import count
 
 import scenario
-from PyQt5.QtWidgets import QVBoxLayout, QWidget
 from nodeeditor.node_content_widget import QDMNodeContentWidget
 from nodeeditor.node_graphics_node import QDMGraphicsNode
 from nodeeditor.node_node import Node
@@ -16,25 +16,30 @@ from nodeeditor.node_socket import (
 )
 from nodeeditor.utils import dumpException
 from qtpy.QtCore import QEvent
+from qtpy.QtCore import QPoint
 from qtpy.QtCore import QRectF
 from qtpy.QtCore import Qt, Signal
-from qtpy.QtGui import QImage, QIcon
+from qtpy.QtGui import QIcon
 from qtpy.QtWidgets import QLineEdit
+from qtpy.QtWidgets import QVBoxLayout, QWidget
 
 from logger import logger
 from theatre.helpers import get_icon
-from theatre.trace_tree_widget.event_dialog import EventPicker
 from theatre.trace_tree_widget.event_edge import EventEdge
 
 if typing.TYPE_CHECKING:
     from theatre.theatre_scene import TheatreScene
+    from theatre.trace_tree_widget.trace_tree_editor_widget import GraphicsView
+
+GREEDY_NODE_EVALUATION = True
+"""Greedily, automatically evaluate newly created or newly connected nodes."""
 
 
 class StateGraphicsNode(QDMGraphicsNode):
     def initSizes(self):
         super().initSizes()
         self.width = 160
-        self.height = 74
+        self.height = 84
         self.edge_roundness = 6
         self.edge_padding = 0
         self.title_horizontal_padding = 8
@@ -116,7 +121,6 @@ class Socket(_Socket):
     Socket_GR_Class = GraphicsSocket
 
 
-
 @dataclass
 class StateNodeOutput:
     state: scenario.State = None
@@ -134,17 +138,18 @@ class StateNode(Node):
 
     def __repr__(self):
         return f"<StateNode {self.title, self.content.edit.text()}>"
+
     __str__ = __repr__
 
     def __init__(
-        self,
-        scene: "TheatreScene",
-        name="State",
-        inputs=[2],
-        outputs=[1],
-        on_value_changed: typing.Callable[["StateNode"], None] = None,
-        on_clicked: typing.Callable[["StateNode"], None] = None,
-        icon: QIcon = None,
+            self,
+            scene: "TheatreScene",
+            name="State",
+            inputs=[2],
+            outputs=[1],
+            on_value_changed: typing.Callable[["StateNode"], None] = None,
+            on_clicked: typing.Callable[["StateNode"], None] = None,
+            icon: QIcon = None,
     ):
         self._on_value_changed = on_value_changed  # signals!
         self._on_clicked = on_clicked  # signals!
@@ -158,6 +163,9 @@ class StateNode(Node):
 
         self.grNode.title_item.setParent(self.content)
         self._update_title()
+
+        self.input_socket: Socket = self.inputs[0]
+        self.output_socket: Socket = self.outputs[0]
 
     @property
     def description(self) -> str:
@@ -174,7 +182,7 @@ class StateNode(Node):
     def initInnerClasses(self):
         self.content = StateContent(self, title=self.title)
         self.content.clicked.connect(self._on_content_clicked)
-        self.grNode = grn = StateGraphicsNode(self)
+        self.grNode = StateGraphicsNode(self)
         self.content.edit.textChanged.connect(self.on_description_changed)
 
     def _on_content_clicked(self):
@@ -209,7 +217,7 @@ class StateNode(Node):
 
     def _evaluate(self) -> scenario.State:
         """Compute the state in this node, based on previous node=state and edge=event"""
-        logger.info(f'reevaluating {self}')
+        logger.info(f'{"re" if self.value else ""}evaluating {self}')
 
         if self.is_root:
             logger.info(f"no edge in: {self} inited as null state (root)")
@@ -226,16 +234,35 @@ class StateNode(Node):
                 f'parent {parent} evaluation yielded something bad: {state_in}'
             )
 
-        state = scenario.trigger(
-            state=state_in.state,
-            event=event_spec.event,
-            charm_type=self.scene.charm_type,
-            meta={'name': 'dummy'}
-        )
+        scenario_stdout_buffer = ''
+        class StreamWrapper:
+            def write(self, msg):
+                if msg and not msg.isspace():
+                    nonlocal scenario_stdout_buffer
+                    scenario_stdout_buffer += msg
 
-        logger.info(f"recomputed state on {self}")
+            def flush(self): pass
+
+        with contextlib.redirect_stdout(StreamWrapper()):
+            # todo switch to Scenario 4.0 when released
+            state = scenario.trigger(
+                state=state_in.state,
+                event=event_spec.event,
+                charm_type=self.scene.charm_type,
+                meta={'name': 'dummy'}
+            )
+
+        # whatever Scenario outputted is in 'scenario_stdout_buffer' now.
+        # TODO: show it somewhere.
+
+        logger.info(f"{'re' if self.value else ''}computed state on {self}")
 
         return state
+
+    def onInputChanged(self, socket: 'Socket'):
+        super().onInputChanged(socket)
+        if GREEDY_NODE_EVALUATION:
+            self.eval()
 
     def eval(self) -> StateNodeOutput:
         if not self.isDirty() and not self.isInvalid():
@@ -273,6 +300,7 @@ class StateNode(Node):
 
         # self.evalChildren()
         self.markDescendantsDirty()
+        self.grNode.update()
 
         return self.value
 
@@ -296,13 +324,6 @@ class StateNode(Node):
             dumpException(e)
         return res
 
-    def fire_event(self):
-        event_picker = EventPicker()
-        event_picker.exec()
-
-        if event_picker.confirmed:
-            event = event_picker.get_event()
-
     def get_previous(self) -> typing.Optional["StateNode"]:
         """The previous state, if any."""
         return self.getInput()
@@ -311,3 +332,21 @@ class StateNode(Node):
         """The next state, if any."""
         outs = self.getOutputs()
         return outs[0] if outs else None
+
+
+def create_new_state(
+        scene: "TheatreScene", view: "GraphicsView", pos: QPoint, name: str = "State"
+):
+    new_state_node = StateNode(
+        scene,
+        name=name,
+        on_value_changed=scene.state_node_changed,
+        on_clicked=scene.state_node_clicked,
+    )
+    pos = QPoint(pos)
+    # translate up by half the node height so the node appears vertically centered
+    #  relative to the mouse click
+    pos.setY(pos.y() - new_state_node.grNode.height // 2)
+    scene_pos = view.mapToScene(pos)
+    new_state_node.setPos(scene_pos.x(), scene_pos.y())
+    return new_state_node

@@ -1,20 +1,20 @@
 import typing
 
 import ops
-from PyQt5.QtCore import QPoint
-from PyQt5.QtGui import QMouseEvent
-from PyQt5.QtWidgets import QVBoxLayout
 from nodeeditor.node_edge import EDGE_TYPE_DEFAULT
 from nodeeditor.node_edge_dragging import EdgeDragging
-from nodeeditor.node_editor_widget import NodeEditorWidget
+from nodeeditor.node_editor_widget import NodeEditorWidget as _NodeEditorWidget
 from nodeeditor.node_graphics_edge import QDMGraphicsEdge
 from nodeeditor.node_graphics_view import MODE_EDGE_DRAG, QDMGraphicsView
 from nodeeditor.node_node import Node
 from nodeeditor.utils import dumpException
 from qtpy.QtCore import QDataStream, QIODevice, Qt
+from qtpy.QtCore import QPoint
 from qtpy.QtCore import Signal
+from qtpy.QtGui import QMouseEvent
 from qtpy.QtGui import QPixmap
 from qtpy.QtWidgets import QAction, QGraphicsProxyWidget, QMenu
+from qtpy.QtWidgets import QVBoxLayout
 
 from logger import logger
 from theatre.theatre_scene import TheatreScene
@@ -24,8 +24,7 @@ from theatre.trace_tree_widget.event_edge import EventEdge
 from theatre.trace_tree_widget.state_node import (
     StateNode,
     GraphicsSocket,
-    Socket,
-    StateContent,
+    StateContent, create_new_state,
 )
 
 DEBUG = False
@@ -43,31 +42,6 @@ def choose_event(parent=None) -> typing.Optional[EventSpec]:
     return event_picker.get_event()
 
 
-# helper functions
-def get_input_socket(node: StateNode) -> typing.Optional[Socket]:
-    if len(node.inputs) > 0:
-        return node.inputs[0]
-
-
-def get_output_socket(node: StateNode) -> typing.Optional[Socket]:
-    if len(node.outputs) > 0:
-        return node.outputs[0]
-
-
-def create_new_state(
-    scene: "TheatreScene", view: "GraphicsView", pos: QPoint, name: str = "State"
-):
-    new_state_node = StateNode(
-        scene,
-        name=name,
-        on_value_changed=scene.state_node_changed,
-        on_clicked=scene.state_node_clicked,
-    )
-    scene_pos = view.mapToScene(pos)
-    new_state_node.setPos(scene_pos.x(), scene_pos.y())
-    return new_state_node
-
-
 class GraphicsView(QDMGraphicsView):
     drag_lmb_bg_click = Signal(QPoint)
 
@@ -82,7 +56,7 @@ class GraphicsView(QDMGraphicsView):
             super().leftMouseButtonPress(event)
 
 
-class TraceTreeEditorWidget(NodeEditorWidget):
+class NodeEditorWidget(_NodeEditorWidget):
     view: GraphicsView
     scene: TheatreScene
     state_node_changed = Signal(StateNode)
@@ -107,7 +81,7 @@ class TraceTreeEditorWidget(NodeEditorWidget):
         self._close_event_listeners = []
 
     def initUI(self):
-        """Set up this ``TraceTreeEditorWidget`` with its layout.`"""
+        """Set up this ``NodeEditorWidget`` with its layout.`"""
         self.layout = QVBoxLayout()
         self.layout.setContentsMargins(0, 0, 0, 0)
         self.setLayout(self.layout)
@@ -134,7 +108,7 @@ class TraceTreeEditorWidget(NodeEditorWidget):
 
         new_state_node = create_new_state(scene, self.view, pos)
         dragging: EdgeDragging = self.view.dragging
-        target_socket = get_input_socket(new_state_node)
+        target_socket = new_state_node.input_socket
 
         # create a new edge
         EventEdge(
@@ -146,7 +120,7 @@ class TraceTreeEditorWidget(NodeEditorWidget):
         )
 
         if self.chain_on_new_node:
-            new_origin = get_output_socket(new_state_node)
+            new_origin = new_state_node.output_socket
             x, y = new_state_node.getSocketScenePosition(new_origin)
             dragging.drag_start_socket = new_origin
             dragging.drag_edge.grEdge.setSource(x, y)
@@ -271,12 +245,12 @@ class TraceTreeEditorWidget(NodeEditorWidget):
 
     def _on_state_context_menu(self, event):
         context_menu = QMenu(self)
-        markDirtyAct = context_menu.addAction("Mark Dirty")
+        mark_dirty_action = context_menu.addAction("Mark Dirty")
+        evaluate_action = context_menu.addAction("Evaluate")
         # markDirtyDescendantsAct = context_menu.addAction("Mark Descendant Dirty")
         # markInvalidAct = context_menu.addAction("Mark Invalid")
         # unmarkInvalidAct = context_menu.addAction("Unmark Invalid")
         # evalAct = context_menu.addAction("Eval")
-        fire_event = context_menu.addAction("Event")
         action = context_menu.exec_(self.mapToGlobal(event.pos()))
 
         item = self.scene.getItemAt(event.pos())
@@ -292,8 +266,13 @@ class TraceTreeEditorWidget(NodeEditorWidget):
             logger.error(f"invalid clicked item: {item}")
             return
 
-        if selected and action == fire_event:
-            selected.fire_event()
+        # dispatch
+        if action == mark_dirty_action:
+            selected.markDirty()
+        elif action == evaluate_action:
+            selected.eval()
+        else:
+            logger.error(f'unhandled action: {action}')
 
     def _on_edge_context_menu(self, event, edge: "EventEdge"):
         context_menu = QMenu(self)
@@ -302,12 +281,7 @@ class TraceTreeEditorWidget(NodeEditorWidget):
 
         if action == change_event_action:
             event_spec = choose_event()
-            edge.set_event_spec(event_spec)
-
-            # todo: avoid expensive recompute if the spec hasn't really changed.
-            #  Compare asdict().
-            edge.end_node.markDirty()
-            edge.end_node.eval()
+            edge.set_event_spec(event_spec)  # this will notify the end node
 
         # bezierAct = context_menu.addAction("Bezier Edge")
         # directAct = context_menu.addAction("Direct Edge")
