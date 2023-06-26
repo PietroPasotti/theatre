@@ -11,3 +11,9 @@ We plan to be able to use it to:
 - aid writing scenario tests for charms
 
 Stay tuned!
+
+Development
+===========
+
+- Tested with python 3.11
+- Scenario 4.0 (dev branch)
