@@ -4,6 +4,7 @@ import os
 import sys
 import typing
 from importlib.metadata import version
+from pathlib import Path
 
 import ops
 from nodeeditor.node_editor_window import NodeEditorWindow
@@ -22,6 +23,7 @@ from qtpy.QtWidgets import (
     QFileDialog,
 )
 
+from theatre import config
 from theatre.logger import logger
 from theatre.helpers import get_icon, toggle_visible, show_error_dialog
 from theatre.trace_inspector import TraceInspectorWidget
@@ -239,7 +241,17 @@ class TheatreMainWindow(NodeEditorWindow):
         editor.create_new_custom_state()
 
     def getFileDialogDirectory(self):
-        return ""
+        path = Path(config.APP_DATA_DIR)
+        if not path.exists():
+            logger.info(f'app data dir {path} not found; attempting to create')
+            try:
+                path.mkdir(parents=True)
+            except Exception as e:
+                logger.error(e, exc_info=True)
+                logger.warn(f'could not initialize desired theatre data dir {path}; '
+                            f'using "./" instead.')
+                return ""
+        return config.APP_DATA_DIR
 
     def onFileSaveAs(self):
         editor = self.current_node_editor
