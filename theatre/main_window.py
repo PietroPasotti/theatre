@@ -1,13 +1,11 @@
 # Copyright 2022 Canonical Ltd.
 # See LICENSE file for licensing details.
-import importlib
 import os
 import sys
 import typing
 from importlib.metadata import version
 
 import ops
-import pkg_resources
 from nodeeditor.node_editor_window import NodeEditorWindow
 from nodeeditor.utils import dumpException
 from nodeeditor.utils import loadStylesheets
@@ -24,7 +22,7 @@ from qtpy.QtWidgets import (
     QFileDialog,
 )
 
-from logger import logger
+from theatre.logger import logger
 from theatre.helpers import get_icon, toggle_visible, show_error_dialog
 from theatre.trace_inspector import TraceInspectorWidget
 from theatre.trace_tree_widget.library_widget import Library

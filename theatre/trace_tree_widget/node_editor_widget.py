@@ -18,7 +18,7 @@ from qtpy.QtGui import QPixmap
 from qtpy.QtWidgets import QAction, QGraphicsProxyWidget, QMenu
 from qtpy.QtWidgets import QVBoxLayout
 
-from logger import logger
+from theatre.logger import logger
 from theatre.helpers import get_icon
 from theatre.theatre_scene import TheatreScene
 from theatre.trace_tree_widget.event_dialog import EventPicker, EventSpec

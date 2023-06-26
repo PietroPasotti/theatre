@@ -8,7 +8,7 @@ import ops
 from qtpy.QtCore import QObject, Signal
 from nodeeditor.node_scene import Scene as _Scene, InvalidFile
 
-from logger import logger
+from theatre.logger import logger
 from theatre.trace_tree_widget.event_edge import EventEdge
 from theatre.trace_tree_widget.state_node import StateNode
 

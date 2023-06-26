@@ -27,7 +27,7 @@ from qtpy.QtWidgets import QLineEdit
 from qtpy.QtWidgets import QVBoxLayout, QWidget
 from scenario.state import JujuLogLine, State
 
-from logger import logger
+from theatre.logger import logger
 from theatre.helpers import get_icon, get_color
 from theatre.trace_tree_widget import new_state_dialog
 from theatre.trace_tree_widget.event_edge import EventEdge

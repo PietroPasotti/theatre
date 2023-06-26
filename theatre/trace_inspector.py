@@ -14,7 +14,7 @@ from qtpy.QtWidgets import QListView
 from qtpy.QtWidgets import QSplitter
 from qtpy.QtWidgets import QTreeView
 
-from logger import logger
+from theatre.logger import logger
 from theatre.helpers import get_icon, get_color, toggle_visible
 from theatre.trace_tree_widget.state_node import StateNode, StateNodeOutput
 

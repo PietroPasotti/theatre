@@ -23,7 +23,7 @@ from qtpy.QtWidgets import (
 )
 from scenario import State
 
-from logger import logger
+from theatre.logger import logger
 from theatre.helpers import show_error_dialog, get_icon
 
 if typing.TYPE_CHECKING:
