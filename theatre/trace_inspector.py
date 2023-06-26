@@ -33,7 +33,7 @@ def get_trace(state: StateNode) -> _Trace:
 
 class TraceView(QListView):
     selection_changed = Signal(StateNode)
-    _invalid_state_color = 'pastel red'
+    _invalid_state_color = "pastel red"
 
     def __init__(self, parent) -> None:
         super().__init__(parent)
@@ -41,6 +41,9 @@ class TraceView(QListView):
         self._state_node: StateNode = None
         self.setModel(QStandardItemModel())
         self.setSelectionMode(self.SingleSelection)
+
+    def is_displayed(self, state: typing.Optional[StateNode]):
+        return self._state_node is state
 
     def display(self, state: StateNode, trace: _Trace):
         self._state_node = state
@@ -70,7 +73,6 @@ class TraceView(QListView):
         item = QStandardItem(event.icon, event.event_spec.event.name)
         item.setData(event, Qt.ItemDataRole.UserRole + 1)
         item.setEnabled(False)
-        model: QStandardItemModel = self.model()
         return item
 
     def _display(self):
@@ -88,12 +90,12 @@ class TraceView(QListView):
 class StateNodeUnsetError(RuntimeError):
     pass
 
+
 class NoStateError(RuntimeError):
     pass
 
 
 class TextView(QTextEdit):
-    EMPTY_MSG = "Nothing to display. State evaluation failed."
     TOOLTIP = ""
 
     def __init__(self, parent=None) -> None:
@@ -114,7 +116,7 @@ class TextView(QTextEdit):
         try:
             contents = self.generate_contents()
         except NoStateError:
-            contents = self.EMPTY_MSG
+            contents = "Nothing to display. State evaluation failed."
         self.setText(contents)
 
     @property
@@ -131,18 +133,20 @@ class TextView(QTextEdit):
 
 
 class ScenarioLogsView(TextView):
-    TOOLTIP = 'scenario.Context.run() logging output'
+    TOOLTIP = "scenario.Context.run() logging output"
 
     def generate_contents(self):
-        return self.node_output.logs
+        return self.node_output.scenario_logs or "<no logs>"
 
 
 class CharmLogsView(TextView):
-    TOOLTIP = 'charm execution juju-log output'
+    TOOLTIP = "charm execution juju-log output"
 
     def generate_contents(self):
-        juju_log = self.node_output.state.juju_log
-        return '\n'.join(' '.join(line) for line in juju_log)
+        juju_log = self.node_output.charm_logs
+        if not juju_log:
+            return "<no logs>"
+        return "\n".join(" ".join(line) for line in juju_log)
 
 
 class LogsView(QSplitter):
@@ -191,18 +195,17 @@ class StateView(QTreeView):
 
         if not state_node.value.state:
             # state still unavailable: this means the computation has failed.
-            # TODO: find some way to show the traceback
-            status_item = QStandardItem(get_icon('error'), "evaluation failed")
+            status_item = QStandardItem(get_icon("error"), "evaluation failed")
             model.appendRow(status_item)
             return
 
         # status
         state: scenario.State = state_node.value.state
         status_name_to_icon = {
-            'active': "stars",
-            'blocked': "error",
+            "active": "stars",
+            "blocked": "error",
         }
-        unit_status = state.status.unit
+        unit_status = state.unit_status
         status_icon = status_name_to_icon.get(unit_status.name, "warning")
         status_text = f"{unit_status.name}: {unit_status.message}"
         status_item = QStandardItem(get_icon(status_icon), status_text)
@@ -213,16 +216,17 @@ class StateView(QTreeView):
 class NodeView(QTabWidget):
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
-        self._displayed: typing.Optional[StateNode] = None
+        self._displayed: None | StateNode = None
 
+        self.setToolTip("Select a state in the inspector to view it.")
         self.state_view = sw = StateView(self)
         self.logs_view = tv = LogsView(self)
         self.raw_state_view = rsv = RawStateView(self)
-        self.addTab(sw, 'state')
-        self.addTab(tv, 'logs')
-        self.addTab(rsv, 'raw')
+        self.addTab(sw, "state")
+        self.addTab(tv, "logs")
+        self.addTab(rsv, "raw")
 
-    def is_displayed(self, state_node: StateNode):
+    def is_displayed(self, state_node: StateNode | None):
         return self._displayed is state_node
 
     def update_contents(self):
@@ -233,7 +237,7 @@ class NodeView(QTabWidget):
 
     def display(self, state_node: StateNode):
         if self.is_displayed(state_node):
-            logger.info(f'ignored display: state node {state_node} already in NodeView')
+            logger.info(f"ignored display: state node {state_node} already in NodeView")
             return
 
         self._displayed = state_node
@@ -251,6 +255,7 @@ class TraceInspectorWidget(QSplitter):
         self.node_view = node_view = NodeView(self)
         self.trace_view.selection_changed.connect(node_view.display)
 
+        self.setToolTip("Select a state node to inspect the trace leading to it.")
         self.addWidget(trace_view)
         self.addWidget(node_view)
         self.setSizes([20, 80])
@@ -276,5 +281,8 @@ class TraceInspectorWidget(QSplitter):
 
         If we're presently displaying it, we may need to update it in the views.
         """
+        if self.trace_view.is_displayed(None):
+            return self.display(state_node)
+
         if self.node_view.is_displayed(state_node):
             self.node_view.update_contents()

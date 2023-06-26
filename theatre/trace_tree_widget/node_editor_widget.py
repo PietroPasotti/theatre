@@ -3,10 +3,12 @@
 import typing
 
 import ops
+from PyQt5.QtWidgets import QGraphicsItem
 from nodeeditor.node_edge import EDGE_TYPE_DEFAULT
-from nodeeditor.node_edge_dragging import EdgeDragging
+from nodeeditor.node_edge_dragging import EdgeDragging as _EdgeDragging
 from nodeeditor.node_editor_widget import NodeEditorWidget as _NodeEditorWidget
 from nodeeditor.node_graphics_edge import QDMGraphicsEdge
+from nodeeditor.node_graphics_socket import QDMGraphicsSocket
 from nodeeditor.node_graphics_view import MODE_EDGE_DRAG, QDMGraphicsView
 from nodeeditor.node_node import Node
 from nodeeditor.utils import dumpException
@@ -17,18 +19,22 @@ from qtpy.QtGui import QMouseEvent
 from qtpy.QtGui import QPixmap
 from qtpy.QtWidgets import QAction, QGraphicsProxyWidget, QMenu
 from qtpy.QtWidgets import QVBoxLayout
-from scenario import State
 
 from logger import logger
+from theatre.helpers import get_icon
 from theatre.theatre_scene import TheatreScene
-from theatre.trace_tree_widget.conf import STATES, LISTBOX_MIMETYPE
 from theatre.trace_tree_widget.event_dialog import EventPicker, EventSpec
 from theatre.trace_tree_widget.event_edge import EventEdge
+from theatre.trace_tree_widget.library_widget import (
+    STATE_SPEC_LIBRARY_ENTRY_MIMETYPE,
+    get_sorted_state_specs, get_spec,
+)
 from theatre.trace_tree_widget.new_state_dialog import NewStateDialog, StateIntent
 from theatre.trace_tree_widget.state_node import (
     StateNode,
     GraphicsSocket,
-    StateContent, create_new_state,
+    StateContent,
+    create_new_node,
 )
 
 DEBUG = False
@@ -45,18 +51,6 @@ def choose_event(parent=None) -> typing.Optional[EventSpec]:
 
     return event_picker.get_event()
 
-def choose_event(parent=None) -> typing.Optional[EventSpec]:
-    event_picker = EventPicker(parent)
-    event_picker.exec()
-
-    if not event_picker.confirmed:
-        logger.info("event picker aborted")
-        return
-
-    return event_picker.get_event()
-
-
-
 
 def get_new_custom_state(parent=None) -> typing.Optional[StateIntent]:
     dialog = NewStateDialog(parent)
@@ -67,6 +61,16 @@ def get_new_custom_state(parent=None) -> typing.Optional[StateIntent]:
         return
 
     return dialog.finalize()
+
+
+class EdgeDragging(_EdgeDragging):
+    drag_edge: EventEdge
+
+    def edgeDragEnd(self, item: 'GraphicsSocket'):
+        # preserve the spec as edgeDragEnd removes the old edge and creates a new one.
+        spec = self.drag_edge.event_spec
+        super().edgeDragEnd(item)
+        self.drag_edge.set_event_spec(spec)
 
 
 class GraphicsView(QDMGraphicsView):
@@ -83,9 +87,11 @@ class GraphicsView(QDMGraphicsView):
             super().leftMouseButtonPress(event)
 
 
+
 class NodeEditorWidget(_NodeEditorWidget):
     view: GraphicsView
     scene: TheatreScene
+    state_node_created = Signal(StateIntent)
     state_node_changed = Signal(StateNode)
     state_node_clicked = Signal(StateNode)
 
@@ -122,6 +128,16 @@ class NodeEditorWidget(_NodeEditorWidget):
         self.view = GraphicsView(self.scene.grScene, self)
 
         self.layout.addWidget(self.view)
+        self._init_actions()
+
+    def _init_actions(self):
+        self._new_state_action = QAction(
+            "New State",
+            self,
+            statusTip="Create a new custom state.",
+            triggered=self.create_new_custom_state,
+            icon=get_icon("edit_square")
+        )
 
     def _create_new_node_at(self, pos: QPoint):
         """RMB While dragging on bg:
@@ -133,7 +149,7 @@ class NodeEditorWidget(_NodeEditorWidget):
         event_spec = choose_event()
         scene: "TheatreScene" = self.scene
 
-        new_state_node = create_new_state(scene, self.view, pos)
+        new_state_node = create_new_node(scene, self.view, pos)
         dragging: EdgeDragging = self.view.dragging
         target_socket = new_state_node.input_socket
 
@@ -143,7 +159,7 @@ class NodeEditorWidget(_NodeEditorWidget):
             dragging.drag_start_socket,
             target_socket,
             edge_type=EDGE_TYPE_DEFAULT,
-            event_spec=event_spec
+            event_spec=event_spec,
         )
 
         if self.chain_on_new_node:
@@ -182,12 +198,9 @@ class NodeEditorWidget(_NodeEditorWidget):
 
     def _create_new_state_actions(self):
         self.state_actions = {}
-        keys = list(STATES.keys())
-        keys.sort()
-        for key in keys:
-            node_spec = STATES[key]
-            self.state_actions[key] = QAction(node_spec.icon, key)
-            self.state_actions[key].setData(key)
+        for state in get_sorted_state_specs():
+            self.state_actions[state.name] = QAction(state.icon, state.name)
+            self.state_actions[state.name].setData(state.name)
 
     def update_title(self):
         self.setWindowTitle(self.getUserFriendlyFilename())
@@ -200,25 +213,28 @@ class NodeEditorWidget(_NodeEditorWidget):
             callback(self, event)
 
     def on_drag_enter(self, event):
-        if event.mimeData().hasFormat(LISTBOX_MIMETYPE):
+        if event.mimeData().hasFormat(STATE_SPEC_LIBRARY_ENTRY_MIMETYPE):
             event.acceptProposedAction()
         else:
             logger.info(f"denied drag enter evt on {self}")
             event.setAccepted(False)
 
     def on_drop(self, event):
-        if event.mimeData().hasFormat(LISTBOX_MIMETYPE):
-            event_data = event.mimeData().data(LISTBOX_MIMETYPE)
+        if event.mimeData().hasFormat(STATE_SPEC_LIBRARY_ENTRY_MIMETYPE):
+            event_data = event.mimeData().data(STATE_SPEC_LIBRARY_ENTRY_MIMETYPE)
             data_stream = QDataStream(event_data, QIODevice.ReadOnly)
             pixmap = QPixmap()
             data_stream >> pixmap
             name = data_stream.readQString()
-            text = data_stream.readQString()
+            spec = get_spec(name)
 
             try:
-                node = create_new_state(
-                    scene=self.scene, view=self.view, pos=event.pos(), name=name
+                node = create_new_node(
+                    scene=self.scene, view=self.view,
+                    pos=event.pos(),
+                    name=name, icon=spec.icon
                 )
+                node.set_custom_value(spec.state)
                 self.scene.history.storeHistory(
                     "Created node %s" % node.__class__.__name__
                 )
@@ -228,7 +244,7 @@ class NodeEditorWidget(_NodeEditorWidget):
             event.setDropAction(Qt.MoveAction)
             event.accept()
         else:
-            # print(" ... drop ignored, not requested format '%s'" % LISTBOX_MIMETYPE)
+            # print(" ... drop ignored, not requested format '%s'" % STATE_SPEC_LIBRARY_ENTRY_MIMETYPE)
             event.ignore()
 
     def find_nearest_parent_at(self, pos: QPoint, types: typing.Tuple[type]):
@@ -272,8 +288,9 @@ class NodeEditorWidget(_NodeEditorWidget):
 
     def _on_state_context_menu(self, event):
         context_menu = QMenu(self)
-        mark_dirty_action = context_menu.addAction("Mark Dirty")
-        evaluate_action = context_menu.addAction("Evaluate")
+        mark_dirty_action = context_menu.addAction(get_icon("recycling"), "Mark Dirty")
+        evaluate_action = context_menu.addAction(get_icon("start"), "Evaluate")
+        edit_action = context_menu.addAction(get_icon("edit"), "Edit")
         # markDirtyDescendantsAct = context_menu.addAction("Mark Descendant Dirty")
         # markInvalidAct = context_menu.addAction("Mark Invalid")
         # unmarkInvalidAct = context_menu.addAction("Unmark Invalid")
@@ -298,8 +315,11 @@ class NodeEditorWidget(_NodeEditorWidget):
             selected.markDirty()
         elif action == evaluate_action:
             selected.eval()
+        elif action == edit_action:
+            selected.open_edit_dialog(self)
+            self.state_node_changed.emit(selected)
         else:
-            logger.error(f'unhandled action: {action}')
+            logger.error(f"unhandled action: {action}")
 
     def _on_edge_context_menu(self, event, edge: "EventEdge"):
         context_menu = QMenu(self)
@@ -332,29 +352,34 @@ class NodeEditorWidget(_NodeEditorWidget):
         new_state_node.grNode.doSelect(True)
         new_state_node.grNode.onSelected()
 
+    def _new_node(self, pos: QPoint = None) -> StateNode:
+        # todo: check this out
+        pos = pos or self.view.scene().sceneRect().center().toPoint()
+        return create_new_node(scene=self.scene,
+                               view=self.view,
+                               pos=pos)
+
     def _on_background_context_menu(self, event):
         menu = QMenu(self)
+        menu.addAction(self._new_state_action)
 
-        new_state = QAction(
-            "New State",
-            self,
-            statusTip="Create a new custom state.",
-            triggered = self.create_new_custom_state,
-        )
-        menu.addAction(new_state)
-
-        keys = list(STATES.keys())
-        keys.sort()
-        for key in keys:
-            menu.addAction(self.state_actions[key])
+        for state in get_sorted_state_specs():
+            menu.addAction(self.state_actions[state.name])
 
         action = menu.exec_(self.mapToGlobal(event.pos()))
+        logger.info(f'triggered {action}')
 
         if action is not None:
-            node = create_new_state(scene=self.scene, view=self.view, pos=event.pos())
+            node = self._new_node(pos=event.pos())
             self.scene.history.storeHistory("Created %s" % node.__class__.__name__)
 
     def create_new_custom_state(self):
         state_intent = get_new_custom_state(self)
-        print(f'created new state! {state_intent}')
-        # self.event_created.emit(state_intent)
+        if state_intent is None:
+            logger.info("new state creation aborted")
+            return
+
+        logger.info(f"created new state! {state_intent}")
+        node = self._new_node()
+        node.set_custom_value(state_intent.state)
+        self.state_node_created.emit(state_intent)

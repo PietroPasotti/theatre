@@ -3,7 +3,6 @@ from ops import UnknownStatus
 from scenario import *
 
 # Fill in your state.
-# Alternatively, you can set STATE to a jsonified State object.
 
 STATE = State(
     config={},

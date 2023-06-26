@@ -14,7 +14,7 @@ ColorType = typing.Union[str, typing.Tuple[int, int, int]]
 DEFAULT_ICON_PIXMAP_RESOLUTION = 100
 
 CUSTOM_COLORS = {
-    'pastel red': (245, 96, 86),
+    "pastel red": (245, 96, 86),
     # event edge colors
     "relation event": "#D474AF",
     "secret event": "#A9FAC8",
@@ -31,7 +31,11 @@ def get_color(color: ColorType):
         mapped_color = color
     else:
         mapped_color = CUSTOM_COLORS.get(color, color)
-    return QColor(*mapped_color) if isinstance(mapped_color, tuple) else QColor(mapped_color)
+    return (
+        QColor(*mapped_color)
+        if isinstance(mapped_color, tuple)
+        else QColor(mapped_color)
+    )
 
 
 class Color(QWidget):
@@ -45,20 +49,20 @@ class Color(QWidget):
 
 
 def show_error_dialog(
-        parent, message: str, title="Whoopsiedaisies!", choices=QMessageBox.Ok
+    parent, message: str, title="Whoopsiedaisies!", choices=QMessageBox.Ok
 ):
     return QMessageBox.critical(parent, title, message, choices)
 
 
-def colorized_pixmap(svg_filename: str, color: QColor,
-                     res: int = DEFAULT_ICON_PIXMAP_RESOLUTION) -> QPixmap:
+def colorized_pixmap(
+    svg_filename: str, color: QColor, res: int = DEFAULT_ICON_PIXMAP_RESOLUTION
+) -> QPixmap:
     renderer = QSvgRenderer(svg_filename)
     pixmap = QPixmap(res, res)
     pixmap.fill(Qt.GlobalColor.transparent)
     painter = QPainter(pixmap)
     renderer.render(painter)  # this is the destination, and only its alpha is used!
-    painter.setCompositionMode(
-        painter.CompositionMode.CompositionMode_SourceIn)
+    painter.setCompositionMode(painter.CompositionMode.CompositionMode_SourceIn)
     painter.fillRect(pixmap.rect(), color)
     painter.end()
     return pixmap
@@ -73,8 +77,7 @@ def get_icon(name: str, color: str = None) -> QIcon:
     abspath_str = str(filename.absolute())
 
     if color:
-        pixmap = colorized_pixmap(svg_filename=abspath_str,
-                                  color=get_color(color))
+        pixmap = colorized_pixmap(svg_filename=abspath_str, color=get_color(color))
         return QIcon(pixmap)
 
     return QIcon(abspath_str)

@@ -24,14 +24,20 @@ from qtpy.QtCore import Qt, Signal
 from qtpy.QtGui import QIcon
 from qtpy.QtWidgets import QLineEdit
 from qtpy.QtWidgets import QVBoxLayout, QWidget
+from scenario.state import JujuLogLine, State
 
 from logger import logger
 from theatre.helpers import get_icon
 from theatre.trace_tree_widget.event_edge import EventEdge
+from theatre.trace_tree_widget.new_state_dialog import NewStateDialog
 
 if typing.TYPE_CHECKING:
     from theatre.theatre_scene import TheatreScene
-    from theatre.trace_tree_widget.trace_tree_editor_widget import GraphicsView
+    from theatre.trace_tree_widget.node_editor_widget import GraphicsView
+
+ALLOW_INPUTS_ON_CUSTOM_NODES = False
+"""Allow custom nodes to have inputs; i.e. if you add an incoming edge, the custom node 
+will be reset and lost."""
 
 GREEDY_NODE_EVALUATION = True
 """Greedily, automatically evaluate newly created or newly connected nodes."""
@@ -50,9 +56,9 @@ class StateGraphicsNode(QDMGraphicsNode):
 
     def initAssets(self):
         super().initAssets()
-        self.icon_ok = get_icon('stars')
-        self.icon_dirty = get_icon('flaky')
-        self.icon_invalid = get_icon('error')
+        self.icon_ok = get_icon("stars")
+        self.icon_dirty = get_icon("flaky")
+        self.icon_invalid = get_icon("error")
 
     def paint(self, painter, QStyleOptionGraphicsItem, widget=None):
         super().paint(painter, QStyleOptionGraphicsItem, widget)
@@ -66,9 +72,7 @@ class StateGraphicsNode(QDMGraphicsNode):
 
         rect = QRectF(-10, -10, 24.0, 24.0)
         pxmp = icon.pixmap(34, 34)
-        painter.drawImage(
-            rect, pxmp.toImage()
-        )
+        painter.drawImage(rect, pxmp.toImage())
 
 
 NEWSTATECTR = count()
@@ -125,9 +129,10 @@ class Socket(_Socket):
 
 @dataclass
 class StateNodeOutput:
-    state: scenario.State = None
-    logs: str = None
-    traceback: inspect.Traceback = None
+    state: typing.Optional[scenario.State] = None
+    charm_logs: typing.Optional[typing.List[JujuLogLine]] = None
+    scenario_logs: typing.Optional[str] = None
+    traceback: typing.Optional[inspect.Traceback] = None
 
 
 class StateNode(Node):
@@ -162,12 +167,22 @@ class StateNode(Node):
         self.value: typing.Optional[StateNodeOutput] = None
         self.scene = typing.cast("TheatreScene", self.scene)
         self._is_dirty = True
-
+        self._is_custom = False
         self.grNode.title_item.setParent(self.content)
         self._update_title()
 
         self.input_socket: Socket = self.inputs[0]
         self.output_socket: Socket = self.outputs[0]
+
+    def set_custom_value(self, state: State):
+        """Overrides any value with this state and configures this as a custom node."""
+        self._is_custom = True
+        self.value = StateNodeOutput(state=state)
+
+        if not ALLOW_INPUTS_ON_CUSTOM_NODES:
+            self.initSockets(inputs=[], outputs=[1])
+
+        self.eval()
 
     @property
     def description(self) -> str:
@@ -209,21 +224,24 @@ class StateNode(Node):
             raise RuntimeError("root node has no edge_in.") from e
 
     def get_title(self):
+        title = []
+        if self._is_custom:
+            title.append("Custom")
+        title.append("State")
         if self.is_root:
-            return "Null State (root)"
-        else:
-            return "State"
+            title.append("(root)")
+        return " ".join(title)
 
     def _update_title(self):
         self.grNode.title = self.get_title()
 
-    def _evaluate(self) -> scenario.State:
+    def _evaluate(self) -> StateNodeOutput:
         """Compute the state in this node, based on previous node=state and edge=event"""
         logger.info(f'{"re" if self.value else ""}evaluating {self}')
 
         if self.is_root:
             logger.info(f"no edge in: {self} inited as null state (root)")
-            return scenario.State()
+            return StateNodeOutput(scenario.State(), [], "")
 
         edge_in = self.edge_in
         parent = edge_in.start_node
@@ -233,78 +251,122 @@ class StateNode(Node):
 
         if not isinstance(state_in, StateNodeOutput):
             raise RuntimeError(
-                f'parent {parent} evaluation yielded something bad: {state_in}'
+                f"parent {parent} evaluation yielded something bad: {state_in}"
             )
 
-        scenario_stdout_buffer = ''
+        scenario_stdout_buffer = ""
+
         class StreamWrapper:
             def write(self, msg):
                 if msg and not msg.isspace():
                     nonlocal scenario_stdout_buffer
                     scenario_stdout_buffer += msg
 
-            def flush(self): pass
+            def flush(self):
+                pass
 
         with contextlib.redirect_stdout(StreamWrapper()):
-            # todo switch to Scenario 4.0 when released
-            state = scenario.trigger(
-                state=state_in.state,
-                event=event_spec.event,
-                charm_type=self.scene.charm_type,
-                meta={'name': 'dummy'}
+            ctx = scenario.Context(
+                charm_type=self.scene.charm_type, meta={"name": "dummy"}
             )
+            state_out = ctx.run(state=state_in.state, event=event_spec.event)
 
         # whatever Scenario outputted is in 'scenario_stdout_buffer' now.
-        # TODO: show it somewhere.
-
         logger.info(f"{'re' if self.value else ''}computed state on {self}")
 
-        return state
+        return StateNodeOutput(state_out, ctx.juju_log, scenario_stdout_buffer)
 
-    def onInputChanged(self, socket: 'Socket'):
+    def onInputChanged(self, socket: "Socket"):
         super().onInputChanged(socket)
         if GREEDY_NODE_EVALUATION:
             self.eval()
 
-    def eval(self) -> StateNodeOutput:
-        if not self.isDirty() and not self.isInvalid():
-            logger.info(f" _> returning cached {self} value")
-            return self.value
+    def open_edit_dialog(self, parent: QWidget = None):
+        dialog = NewStateDialog(parent, title=f"Edit {self}")
+        dialog.exec()
 
-        self.traceback = None
+        if not dialog.confirmed:
+            logger.info("new state dialog aborted")
+            return
 
-        try:
-            state = self._evaluate()
-            # todo attach logs
-            value = StateNodeOutput(state=state)
-            self.markInvalid(False)
-            self.markDirty(False)
+        intent = dialog.finalize()
+        value = StateNodeOutput(state=intent.state)
+        self.update_value(value)
 
-            self.grNode.setToolTip(str(state))
+    def update_value(self, new_value: StateNodeOutput) -> StateNodeOutput:
+        # todo: also update library, name and icon
+        self.markInvalid(False)
+        self.markDirty(False)
 
-            # notify listeners of potential value change
-            if self._on_value_changed:
-                self._on_value_changed.emit(self)
+        self.value = new_value
 
-        except Exception as e:
-            self.markInvalid()
-            self.markDescendantsDirty()
-            self.grNode.setToolTip(str(e))
-            self.traceback = tb = e.__traceback__
-            logger.error(e)
-            value = StateNodeOutput(
-                traceback=tb
-            )
+        # todo find better tooltip
+        self.grNode.setToolTip(str(new_value.state))
+
+        # notify listeners of potential value change
+        if self._on_value_changed:
+            self._on_value_changed.emit(self)
+
+        self.markDescendantsDirty()
+        self._update_graphics()
+        return new_value
+
+    def _set_error_value(self, e: Exception):
+        self.grNode.setToolTip(str(e))
+        tb = e.__traceback__
+        logger.error(e)
+        value = StateNodeOutput(traceback=tb)
 
         self.value = value
         # first set our own value, otherwise evalchildren will try to fetch our eval()
         # and cause recursive nightmares
-
         # self.evalChildren()
-        self.markDescendantsDirty()
-        self.grNode.update()
+        self.markInvalid(True)
+        self.markDirty(True)
+        self.markDescendantsDirty(True)
+        self._update_graphics()
+        return value
 
-        return self.value
+    def _update_graphics(self):
+        self.grNode.update()
+        if self.input_socket and self.input_socket.edges:
+            self.input_socket.edges[0]._update_icon()
+
+    def eval(self) -> StateNodeOutput:
+        if self._is_custom:
+            logger.info(f"Skipping eval of custom node.")
+            self.markInvalid(False)
+            self.markDirty(False)
+            return self.value
+
+        if not self.isDirty() and not self.isInvalid():
+            logger.info(f"Returning cached value.")
+            return self.value
+
+        try:
+            return self.update_value(self._evaluate())
+        except Exception as e:
+            return self._set_error_value(e)
+
+    def getChildrenNodes(self) -> typing.List["StateNode"]:
+        """
+        Retrieve all first-level children connected to this `Node` `Outputs`
+
+        :return: list of `Nodes` connected to this `Node` from all `Outputs`
+        :rtype: List[:class:`~nodeeditor.node_node.Node`]
+        """
+
+        if not self.outputs:
+            return []
+
+        children = []
+        for socket in self.outputs:
+            edge: EventEdge
+            for edge in socket.edges:
+                # if the edge is the one generated by Dragging, there might be no end node (yet).
+                if edge.end_socket:
+                    children.append(edge.end_node)
+        return children
 
     def on_description_changed(self, socket=None):
         logger.info(f"description changed: {self}")
@@ -328,7 +390,7 @@ class StateNode(Node):
 
     def get_previous(self) -> typing.Optional["StateNode"]:
         """The previous state, if any."""
-        return self.getInput()
+        return self.getInput() if self.inputs else None  # skip traceback
 
     def get_next(self) -> typing.Optional["StateNode"]:
         """The next state, if any."""
@@ -336,12 +398,14 @@ class StateNode(Node):
         return outs[0] if outs else None
 
 
-def create_new_state(
-        scene: "TheatreScene", view: "GraphicsView", pos: QPoint, name: str = "State"
+def create_new_node(
+        scene: "TheatreScene", view: "GraphicsView", pos: QPoint, name: str = "State",
+        icon: QIcon = None
 ):
     new_state_node = StateNode(
         scene,
         name=name,
+        icon=icon,
         on_value_changed=scene.state_node_changed,
         on_clicked=scene.state_node_clicked,
     )

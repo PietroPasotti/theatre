@@ -3,12 +3,16 @@
 import typing
 from dataclasses import asdict
 
+from PyQt5.QtCore import QPointF
+from PyQt5.QtGui import QPainter, QPainterPath
+from PyQt5.QtWidgets import QGraphicsPixmapItem, QWidget
 from nodeeditor.node_edge import Edge as _Edge, EDGE_TYPE_DIRECT, EDGE_TYPE_DEFAULT
 from nodeeditor.node_edge_validators import (
     edge_validator_debug,
     edge_cannot_connect_two_outputs_or_two_inputs,
     edge_cannot_connect_input_and_output_of_same_node,
 )
+from nodeeditor.node_graphics_edge import QDMGraphicsEdge
 from qtpy.QtWidgets import QLabel
 from qtpy.QtGui import QIcon
 
@@ -24,6 +28,21 @@ if typing.TYPE_CHECKING:
 class EventNameLabel(QLabel):
     """Label representing an event's name."""
 
+class GraphicsEdge(QDMGraphicsEdge):
+    def __init__(self, edge: 'EventEdge', parent: QWidget = None):
+        super().__init__(edge, parent)
+
+    def paint(self, painter: QPainter, QStyleOptionGraphicsItem, widget=None):
+        super().paint(painter, QStyleOptionGraphicsItem, widget)
+
+        # sx, sy = self.posSource
+        # dx, dy = self.posDestination
+        # midpoint = QPointF(((sx+dx)/2), ((sy+dy)/2))
+
+        path: QPainterPath = self.path()
+        midpoint = path.pointAtPercent(.5)
+        painter.drawPixmap(midpoint, self.edge.icon.pixmap(32, 32))
+
 
 class EventEdge(_Edge):
     """Edge representing an Event."""
@@ -34,16 +53,34 @@ class EventEdge(_Edge):
         start_socket: "Socket" = None,
         end_socket: "Socket" = None,
         edge_type=EDGE_TYPE_DIRECT,
-        event_spec: EventSpec = None,
+        event_spec: typing.Optional[EventSpec] = None,
     ):
         super().__init__(scene, start_socket, end_socket, edge_type)
-        self._event_spec = event_spec
+        self._event_spec: typing.Optional[EventSpec] = None
 
         # todo: display label and anchor it to the edge
         # self.label = EventNameLabel(event_spec.event.name)
+        self.icon = None
+        self._update_icon()
+
+        if event_spec:
+            self.set_event_spec(event_spec)
+        else:
+            self._notify_end_node()
+
+    def _update_icon(self):
         self.icon = self._get_icon()
 
-        self._notify_end_node()
+    def createEdgeClassInstance(self):
+        """
+        Create instance of grEdge class
+        :return: Instance of `grEdge` class representing the Graphics Edge in the grScene
+        """
+        self.grEdge = GraphicsEdge(self)
+        self.scene.grScene.addItem(self.grEdge)
+        if self.start_socket is not None:
+            self.updatePositions()
+        return self.grEdge
 
     def _notify_end_node(self):
         """notify end node, if present, that it has a new input"""
@@ -52,22 +89,27 @@ class EventEdge(_Edge):
             end_socket.node.onInputChanged(end_socket)
 
     def _get_icon(self) -> QIcon:
-        # todo: custom icons per event type
+        if not self._event_spec:
+            return get_icon("pending")
+        if self.end_socket and self.end_socket.node.value.traceback:
+            return get_icon("offline_bolt")
         return get_icon("arrow_circle_right")
 
     def __repr__(self):
-        return f"<{self.start_node} --> {self._event_spec} --> {self.end_node}>"
+        return f"<{self.start_node if self.start_socket else '?'} --> " \
+               f"{self._event_spec} --> " \
+               f"{self.end_node if self.end_socket else '?'}>"
 
     @property
     def start_node(self) -> "StateNode":
         if not self.start_socket:
-            raise RuntimeError('no start node: this edge is still being dragged')
+            raise RuntimeError("no start node: is this edge still being dragged?")
         return typing.cast("StateNode", self.start_socket.node)
 
     @property
     def end_node(self) -> "StateNode":
         if not self.end_socket:
-            raise RuntimeError('no end node: this edge is still being dragged')
+            raise RuntimeError("no end node: is this edge still being dragged?")
         return typing.cast("StateNode", self.end_socket.node)
 
     @property
@@ -86,7 +128,7 @@ class EventEdge(_Edge):
             return get_color("storage event")
         elif event._is_workload_event:
             return get_color("workload event")
-        elif event.name.startswith('leader'):  # _is_leader_event...
+        elif event.name.startswith("leader"):  # _is_leader_event...
             return get_color("leader event")
         elif event._is_builtin_event:
             return get_color("builtin event")
@@ -97,6 +139,8 @@ class EventEdge(_Edge):
         self._event_spec = spec
         self.grEdge.changeColor(self._get_color())
         self._notify_end_node()
+        self.grEdge.setToolTip(spec.event.name)
+        self._update_icon()
         # self.grEdge.set_label(spec.event.name)
 
     def serialize(self):

@@ -1,15 +1,46 @@
 # Copyright 2022 Canonical Ltd.
 # See LICENSE file for licensing details.
+import typing
+from dataclasses import dataclass
+
 from nodeeditor.utils import dumpException
 from qtpy.QtCore import QSize, Qt, QByteArray, QDataStream, QMimeData, QIODevice, QPoint
 from qtpy.QtGui import QDrag
+from qtpy.QtGui import QIcon
 from qtpy.QtWidgets import QListWidget, QAbstractItemView, QListWidgetItem
+from scenario import State
 
 from theatre.helpers import get_icon
-from theatre.trace_tree_widget.conf import STATES
+from theatre.trace_tree_widget.new_state_dialog import StateIntent
+
+STATE_SPEC_LIBRARY_ENTRY_MIMETYPE = "application/x-item"
 
 
-class QDMDragListbox(QListWidget):
+@dataclass
+class StateSpec:  # todo unify with StateIntent
+    """Library entry."""
+
+    state: State
+    icon: QIcon = None
+    name: str = "Anonymous State"
+
+
+# Library database
+CATALOGUE = [
+    StateSpec(State(), get_icon("data_object"), "Null State"),
+    StateSpec(State(leader=True), get_icon("data_object"), "Leader State"),
+]
+
+
+def get_sorted_state_specs() -> typing.List[StateSpec]:
+    return sorted(CATALOGUE, key=lambda spec: spec.name)
+
+
+def get_spec(name: str) -> StateSpec:
+    return next(filter(lambda spec: spec.name == name, CATALOGUE))
+
+
+class Library(QListWidget):
     _icon_size = 32
 
     def __init__(self, parent=None):
@@ -24,37 +55,43 @@ class QDMDragListbox(QListWidget):
 
         self._add_state_templates()
 
-    def _add_state_templates(self):
-        keys = list(STATES.keys())
-        keys.sort()
-        for key in keys:
-            state = STATES[key]
-            self._add_state(key, state.icon)
+    def on_node_created(self, state_intent: StateIntent):
+        if state_intent.add_to_library:
+            self._add_state(
+                StateSpec(
+                    state=state_intent.state,
+                    icon=state_intent.icon,
+                    name=state_intent.name
+                )
+            )
 
-    def _add_state(self, name, icon=None):
+    def _add_state_templates(self):
+        for state in get_sorted_state_specs():
+            self._add_state(state)
+
+    def _add_state(self, state_spec: StateSpec):
+        name = state_spec.name
         item = QListWidgetItem(name, self)  # can be (icon, text, parent, <int>type)
+        icon = state_spec.icon
         if icon:
             item.setIcon(icon)
         item.setSizeHint(QSize(32, 32))
 
         item.setFlags(Qt.ItemIsEnabled | Qt.ItemIsSelectable | Qt.ItemIsDragEnabled)
-
-        # setup data
-        item.setData(Qt.UserRole, icon or get_icon("help"))
-        item.setData(Qt.UserRole + 1, name)
+        item.setData(Qt.UserRole, state_spec)
 
     def startDrag(self, *args, **kwargs):
         try:
             item = self.currentItem()
-            name = item.data(Qt.UserRole + 1)
-
-            pixmap = item.data(Qt.UserRole).pixmap(self._icon_size, self._icon_size)
+            state_spec: StateSpec = item.data(Qt.UserRole)
+            name = state_spec.name
+            icon = state_spec.icon
+            pixmap = icon.pixmap(self._icon_size, self._icon_size)
 
             itemData = QByteArray()
             dataStream = QDataStream(itemData, QIODevice.WriteOnly)
             dataStream << pixmap
             dataStream.writeQString(name)
-            dataStream.writeQString(item.text())
 
             mimeData = QMimeData()
             mimeData.setData("application/x-item", itemData)

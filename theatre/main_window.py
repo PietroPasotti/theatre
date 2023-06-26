@@ -24,8 +24,8 @@ from qtpy.QtWidgets import (
 from logger import logger
 from theatre.helpers import get_icon, toggle_visible, show_error_dialog
 from theatre.trace_inspector import TraceInspectorWidget
-from theatre.trace_tree_widget.drag_listbox import QDMDragListbox
-from theatre.trace_tree_widget.trace_tree_editor_widget import NodeEditorWidget
+from theatre.trace_tree_widget.library_widget import Library
+from theatre.trace_tree_widget.node_editor_widget import NodeEditorWidget
 
 if typing.TYPE_CHECKING:
     from nodeeditor.node_editor_widget import NodeEditorWidget
@@ -90,7 +90,7 @@ class TheatreMainWindow(NodeEditorWindow):
         self.windowMapper = QSignalMapper(self)
         self.windowMapper.mapped[QWidget].connect(self.set_active_subwindow)
 
-        self._states = states = QDMDragListbox(self)
+        self._states = states = Library(self)
         self._states_dock = states_dock = QDockWidget("Library")
         states_dock.setWidget(states)
         states_dock.setFloating(False)
@@ -193,7 +193,7 @@ class TheatreMainWindow(NodeEditorWindow):
             "Show &Trace Lib",
             self,
             statusTip="Toggle the visibility of the trace library.",
-            triggered = self.toggle_states,
+            triggered=self.toggle_states,
             checkable=True,
         )
 
@@ -201,7 +201,7 @@ class TheatreMainWindow(NodeEditorWindow):
             "Show scenario logs",
             self,
             statusTip="Toggle the visibility of scenario logs in trace inspector/logs.",
-            triggered = self._trace_inspector.node_view.logs_view.scenario_logs_view.toggle,
+            triggered=self._trace_inspector.node_view.logs_view.scenario_logs_view.toggle,
             checkable=True,
         )
 
@@ -209,7 +209,7 @@ class TheatreMainWindow(NodeEditorWindow):
             "Show Trace &Inspector",
             self,
             statusTip="Toggle the visibility of the trace inspector widget.",
-            triggered = self._trace_inspector.toggle,
+            triggered=self._trace_inspector.toggle,
             checkable=True,
         )
 
@@ -217,7 +217,7 @@ class TheatreMainWindow(NodeEditorWindow):
             "New State",
             self,
             statusTip="Create a new custom state.",
-            triggered = self.on_new_custom_state,
+            triggered=self.on_new_custom_state,
         )
 
     def getCurrentNodeEditorWidget(self) -> typing.Optional["NodeEditorWidget"]:
@@ -431,9 +431,7 @@ class TheatreMainWindow(NodeEditorWindow):
         self.statusBar().showMessage("Ready")
 
     def create_new_trace_tree_tab(self, widget: NodeEditorWidget = None):
-        trace_tree_editor = widget or NodeEditorWidget(
-            self.charm_type, self.mdiArea
-        )
+        trace_tree_editor = widget or NodeEditorWidget(self.charm_type, self.mdiArea)
         subwnd = self.mdiArea.addSubWindow(trace_tree_editor)
         subwnd.setWindowIcon(self.empty_icon)
         self.mdiArea.setActiveSubWindow(subwnd)  # this doesn't always work
@@ -444,6 +442,7 @@ class TheatreMainWindow(NodeEditorWindow):
         trace_tree_editor.state_node_changed.connect(
             self._trace_inspector.on_node_changed
         )
+        trace_tree_editor.state_node_created.connect(self._states.on_node_created)
         # click on trace tree editor --> display in trace inspector
         trace_tree_editor.state_node_clicked.connect(self._trace_inspector.display)
 
