@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from itertools import count
 
 import scenario
+from PyQt5.QtGui import QBrush, QColor
 from nodeeditor.node_content_widget import QDMNodeContentWidget
 from nodeeditor.node_graphics_node import QDMGraphicsNode
 from nodeeditor.node_node import Node
@@ -27,9 +28,9 @@ from qtpy.QtWidgets import QVBoxLayout, QWidget
 from scenario.state import JujuLogLine, State
 
 from logger import logger
-from theatre.helpers import get_icon
+from theatre.helpers import get_icon, get_color
+from theatre.trace_tree_widget import new_state_dialog
 from theatre.trace_tree_widget.event_edge import EventEdge
-from theatre.trace_tree_widget.new_state_dialog import NewStateDialog
 
 if typing.TYPE_CHECKING:
     from theatre.theatre_scene import TheatreScene
@@ -63,14 +64,14 @@ class StateGraphicsNode(QDMGraphicsNode):
     def paint(self, painter, QStyleOptionGraphicsItem, widget=None):
         super().paint(painter, QStyleOptionGraphicsItem, widget)
 
-        if self.node.isDirty():
-            icon = self.icon_dirty
-        elif self.node.isInvalid():
+        if self.node.isInvalid():
             icon = self.icon_invalid
+        elif self.node.isDirty():
+            icon = self.icon_dirty
         else:
             icon = self.icon_ok
 
-        rect = QRectF(-10, -10, 24.0, 24.0)
+        rect = QRectF(160-24, 0, 24.0, 24.0)
         pxmp = icon.pixmap(34, 34)
         painter.drawImage(rect, pxmp.toImage())
 
@@ -282,7 +283,7 @@ class StateNode(Node):
             self.eval()
 
     def open_edit_dialog(self, parent: QWidget = None):
-        dialog = NewStateDialog(parent, title=f"Edit {self}")
+        dialog = new_state_dialog.NewStateDialog(parent, mode=new_state_dialog.Mode.edit, base=self)
         dialog.exec()
 
         if not dialog.confirmed:

@@ -3,12 +3,10 @@
 import typing
 
 import ops
-from PyQt5.QtWidgets import QGraphicsItem
 from nodeeditor.node_edge import EDGE_TYPE_DEFAULT
 from nodeeditor.node_edge_dragging import EdgeDragging as _EdgeDragging
 from nodeeditor.node_editor_widget import NodeEditorWidget as _NodeEditorWidget
 from nodeeditor.node_graphics_edge import QDMGraphicsEdge
-from nodeeditor.node_graphics_socket import QDMGraphicsSocket
 from nodeeditor.node_graphics_view import MODE_EDGE_DRAG, QDMGraphicsView
 from nodeeditor.node_node import Node
 from nodeeditor.utils import dumpException
@@ -85,7 +83,6 @@ class GraphicsView(QDMGraphicsView):
         else:
             event.ignore()
             super().leftMouseButtonPress(event)
-
 
 
 class NodeEditorWidget(_NodeEditorWidget):
@@ -287,16 +284,6 @@ class NodeEditorWidget(_NodeEditorWidget):
             dumpException(e)
 
     def _on_state_context_menu(self, event):
-        context_menu = QMenu(self)
-        mark_dirty_action = context_menu.addAction(get_icon("recycling"), "Mark Dirty")
-        evaluate_action = context_menu.addAction(get_icon("start"), "Evaluate")
-        edit_action = context_menu.addAction(get_icon("edit"), "Edit")
-        # markDirtyDescendantsAct = context_menu.addAction("Mark Descendant Dirty")
-        # markInvalidAct = context_menu.addAction("Mark Invalid")
-        # unmarkInvalidAct = context_menu.addAction("Unmark Invalid")
-        # evalAct = context_menu.addAction("Eval")
-        action = context_menu.exec_(self.mapToGlobal(event.pos()))
-
         item = self.scene.getItemAt(event.pos())
         if isinstance(item, QGraphicsProxyWidget):
             item = item.widget()
@@ -309,6 +296,20 @@ class NodeEditorWidget(_NodeEditorWidget):
         else:
             logger.error(f"invalid clicked item: {item}")
             return
+
+        context_menu = QMenu(self)
+        mark_dirty_action = context_menu.addAction(get_icon("recycling"), "Mark Dirty")
+        evaluate_action = context_menu.addAction(get_icon("start"), "Evaluate")
+        edit_action = context_menu.addAction(get_icon("edit"), "Edit")
+        # markDirtyDescendantsAct = context_menu.addAction("Mark Descendant Dirty")
+        # markInvalidAct = context_menu.addAction("Mark Invalid")
+        # unmarkInvalidAct = context_menu.addAction("Unmark Invalid")
+        # evalAct = context_menu.addAction("Eval")
+
+        if not selected.is_root:
+            edit_action.setEnabled(False)
+
+        action = context_menu.exec_(self.mapToGlobal(event.pos()))
 
         # dispatch
         if action == mark_dirty_action:
@@ -353,11 +354,14 @@ class NodeEditorWidget(_NodeEditorWidget):
         new_state_node.grNode.onSelected()
 
     def _new_node(self, pos: QPoint = None) -> StateNode:
-        # todo: check this out
+        # fixme: this is the topleft corner, somehow
         pos = pos or self.view.scene().sceneRect().center().toPoint()
-        return create_new_node(scene=self.scene,
-                               view=self.view,
-                               pos=pos)
+        new_node = create_new_node(scene=self.scene,
+                                   view=self.view,
+                                   pos=pos)
+        self.scene.history.storeHistory(f"Created {new_node}")
+        self._finalize_node(new_node)
+        return new_node
 
     def _on_background_context_menu(self, event):
         menu = QMenu(self)
@@ -369,9 +373,9 @@ class NodeEditorWidget(_NodeEditorWidget):
         action = menu.exec_(self.mapToGlobal(event.pos()))
         logger.info(f'triggered {action}')
 
-        if action is not None:
-            node = self._new_node(pos=event.pos())
-            self.scene.history.storeHistory("Created %s" % node.__class__.__name__)
+        if action not in [self._new_state_action, None]:
+            # only action that will handle itself by calling self.create_new_custom_state
+            self._new_node(pos=event.pos())
 
     def create_new_custom_state(self):
         state_intent = get_new_custom_state(self)

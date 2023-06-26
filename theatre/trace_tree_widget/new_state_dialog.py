@@ -60,8 +60,10 @@ class NewStateDialog(QDialog):
             template_text = read_template(NEW_STATE_TEMPLATE)
             lib_name = "Custom State"
         else:
+            if not base:
+                raise ValueError(f"'base' is required when using {type(self)} in mode {mode}")
             title = f"Edit {base}."
-            state_repr = json.dumps(asdict(base.value.state))
+            state_repr = repr(base.value.state)
             template_text = read_template(EDIT_STATE_TEMPLATE).format(state_repr)
             lib_name = base.title
 

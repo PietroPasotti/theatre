@@ -90,9 +90,18 @@ class EventEdge(_Edge):
 
     def _get_icon(self) -> QIcon:
         if not self._event_spec:
+            # edge being dragged
             return get_icon("pending")
+
+        if self.end_socket and self.end_socket.node.value is None:
+            # end node not evaluated yet
+            return get_icon("flaky")
+
         if self.end_socket and self.end_socket.node.value.traceback:
+            # end node evaluated and errored
             return get_icon("offline_bolt")
+
+        # all good:
         return get_icon("arrow_circle_right")
 
     def __repr__(self):

@@ -1,10 +1,13 @@
 # Copyright 2022 Canonical Ltd.
 # See LICENSE file for licensing details.
+import importlib
 import os
 import sys
 import typing
+from importlib.metadata import version
 
 import ops
+import pkg_resources
 from nodeeditor.node_editor_window import NodeEditorWindow
 from nodeeditor.utils import dumpException
 from nodeeditor.utils import loadStylesheets
@@ -308,6 +311,10 @@ class TheatreMainWindow(NodeEditorWindow):
             else:
                 editor_widget.close()
 
+    def getFileDialogFilter(self):
+        """Returns ``str`` standard file open/save filter for ``QFileDialog``"""
+        return 'Theatre Graph (*.theatre);;All files (*)'
+
     def onFileOpen(self):
         fnames, _ = QFileDialog.getOpenFileNames(
             self,
@@ -326,7 +333,10 @@ class TheatreMainWindow(NodeEditorWindow):
     def about(self):
         QMessageBox.about(
             self,
-            "This is awesome!",
+            f"""This is awesome! 
+            
+            python: {sys.version_info}
+            scenario: {version('scenario')}"""
         )
 
     def createMenus(self):
