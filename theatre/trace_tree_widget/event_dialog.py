@@ -4,8 +4,6 @@ import typing
 from dataclasses import dataclass
 from itertools import chain
 
-from scenario.state import ACTION_EVENT_SUFFIX, RELATION_EVENTS_SUFFIX, STORAGE_EVENTS_SUFFIX, \
-    PEBBLE_READY_EVENT_SUFFIX
 from PyQt5 import QtGui
 from PyQt5.QtGui import QFont, QIntValidator
 from PyQt5.QtWidgets import (
@@ -20,6 +18,8 @@ from PyQt5.QtWidgets import (
     QComboBox, QAction,
 )
 from scenario import Event
+from scenario.state import ACTION_EVENT_SUFFIX, RELATION_EVENTS_SUFFIX, STORAGE_EVENTS_SUFFIX, \
+    PEBBLE_READY_EVENT_SUFFIX
 
 if typing.TYPE_CHECKING:
     from scenario.state import _CharmSpec
@@ -46,6 +46,7 @@ SECRET_EVENTS = (
     "secret-remove",
     "secret-rotate",
 )
+
 
 @dataclass
 class EventSpec:
@@ -206,23 +207,31 @@ class EventPicker(QDialog):
         self.confirmed = False
 
     def _add_events(self, dropdown: QComboBox):
-        def _add_sep():
-            sep = QAction()
-            sep.setSeparator(True)
-            dropdown.addAction(sep)
+        # fixme: headers won't show because QComboBox by default hides disabled options
+        # def add_header(header):
+        #     act = QAction()
+        #     act.setText(header)
+        #     act.setEnabled(False)
+        #     dropdown.addAction(act)
 
-        # Lifecycle events
-        for name in LIFECYCLE_EVENTS:
-            dropdown.addItem(name)
-        _add_sep()
-        # Lifecycle events
-        for name in SECRET_EVENTS:
-            dropdown.addItem(name)
-        _add_sep()
+        def add_separator():
+            idx = dropdown.model().rowCount()
+            dropdown.insertSeparator(idx)
+
+        def add_section(header: str, items: typing.Sequence[str], add_sep: bool = True):
+            if items:
+                # add_header(header)
+                for item in items:
+                    dropdown.addItem(item)
+                if add_sep:
+                    add_separator()
+
+        # Static builtin events
+        add_section("Lifecycle events", LIFECYCLE_EVENTS)
+        add_section("Secret events", SECRET_EVENTS)
         # Dynamically defined builtin events
-
         charm_spec = self._charm_spec
-        builtins = []
+        relation_events = []
         for relation_name in chain(
                 charm_spec.meta.get("requires", ()),
                 charm_spec.meta.get("provides", ()),
@@ -230,21 +239,27 @@ class EventPicker(QDialog):
         ):
             relation_name = relation_name.replace("-", "_")
             for relation_evt_suffix in RELATION_EVENTS_SUFFIX:
-                builtins.append(relation_name + relation_evt_suffix)
+                relation_events.append(relation_name + relation_evt_suffix)
+        add_section("Relation events", relation_events)
 
+        storage_events = []
         for storage_name in charm_spec.meta.get("storages", ()):
             storage_name = storage_name.replace("-", "_")
             for storage_evt_suffix in STORAGE_EVENTS_SUFFIX:
-                builtins.append(storage_name + storage_evt_suffix)
+                storage_events.append(storage_name + storage_evt_suffix)
+        add_section("Storage events", storage_events)
 
+        action_events = []
         for action_name in charm_spec.actions or ():
             action_name = action_name.replace("-", "_")
-            builtins.append(action_name + ACTION_EVENT_SUFFIX)
+            action_events.append(action_name + ACTION_EVENT_SUFFIX)
+        add_section("Action events", action_events)
 
+        workload_events = []
         for container_name in charm_spec.meta.get("containers", ()):
             container_name = container_name.replace("-", "_")
-            builtins.append(container_name + PEBBLE_READY_EVENT_SUFFIX)
-
+            workload_events.append(container_name + PEBBLE_READY_EVENT_SUFFIX)
+        add_section("Workload events", workload_events)
 
     def closeEvent(self, a0: QtGui.QCloseEvent) -> None:
         super().closeEvent(a0)

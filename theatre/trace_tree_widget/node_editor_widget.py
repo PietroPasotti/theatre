@@ -3,6 +3,7 @@
 import typing
 
 import ops
+from PyQt5.QtCore import QPointF
 from PyQt5.QtGui import QDragMoveEvent, QWheelEvent
 from nodeeditor.node_edge import EDGE_TYPE_DEFAULT
 from nodeeditor.node_edge_dragging import EdgeDragging as _EdgeDragging
@@ -115,8 +116,20 @@ class GraphicsView(QDMGraphicsView):
             # set scene scale
             if not clamped or self.zoomClamp is False:
                 self.scale(zoom_factor, zoom_factor)
+            event.accept()
+
+        elif event.modifiers() & Qt.SHIFT:
+            # pos = self.sceneRect().topRight()
+            # new_pos = QPointF(pos.x(), pos.y()+50)
+            sb = self.horizontalScrollBar()
+            # TODO: support inverted scrolling? --> replace - with +
+            sb.setValue(sb.value() - event.angleDelta().y())
+            event.accept()
+
         else:
-            event.ignore()
+            sb = self.verticalScrollBar()
+            sb.setValue(sb.value() - event.angleDelta().y())
+            event.accept()
 
 
 class NodeEditorWidget(_NodeEditorWidget):

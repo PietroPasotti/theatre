@@ -1,14 +1,13 @@
 # Copyright 2022 Canonical Ltd.
 # See LICENSE file for licensing details.
 import importlib
-import json
 import os
 import subprocess
 import sys
 import tempfile
 import types
 import typing
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
 
@@ -23,13 +22,14 @@ from qtpy.QtWidgets import (
 )
 from scenario import State
 
-from theatre.logger import logger
+from theatre.config import RESOURCES_DIR
 from theatre.helpers import show_error_dialog, get_icon
+from theatre.logger import logger
 
 if typing.TYPE_CHECKING:
     from theatre.trace_tree_widget.state_node import StateNode
 
-TEMPLATES_DIR = Path(__file__).parent.parent / "resources"
+TEMPLATES_DIR = RESOURCES_DIR / "states"
 NEW_STATE_TEMPLATE = "new_state_template.py"
 EDIT_STATE_TEMPLATE = "edit_state_template.py"
 DEFAULT_TEMPLATE = NEW_STATE_TEMPLATE
@@ -53,7 +53,7 @@ class Mode(Enum):
 
 
 class NewStateDialog(QDialog):
-    def __init__(self, parent=None, mode: Mode=Mode.new, base: "StateNode" = None):
+    def __init__(self, parent=None, mode: Mode = Mode.new, base: "StateNode" = None):
         super().__init__(parent)
         if mode is Mode.new:
             title = "Create a new Root State."
@@ -64,6 +64,10 @@ class NewStateDialog(QDialog):
                 raise ValueError(f"'base' is required when using {type(self)} in mode {mode}")
             title = f"Edit {base}."
             state_repr = repr(base.value.state)
+            # fixme: scenario's repr is broken on UnknownStatus.
+            #  cfr: https://github.com/canonical/ops-scenario/issues/42
+            state_repr = state_repr.replace("UnknownStatus('')", "UnknownStatus()")
+
             template_text = read_template(EDIT_STATE_TEMPLATE).format(state_repr)
             lib_name = base.title
 

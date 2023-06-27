@@ -183,7 +183,8 @@ class StateNode(Node):
         self.value = StateNodeOutput(state=state)
 
         if not ALLOW_INPUTS_ON_CUSTOM_NODES:
-            self.initSockets(inputs=[], outputs=[1])
+            old_socket = self.inputs.pop()
+            self.scene.grScene.removeItem(old_socket.grSocket)
 
         self.eval()
 
