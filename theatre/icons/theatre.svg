@@ -1,0 +1,112 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
+
+<svg
+   width="210mm"
+   height="297mm"
+   viewBox="0 0 210 297"
+   version="1.1"
+   id="svg5"
+   inkscape:version="1.1.2 (0a00cf5339, 2022-02-04)"
+   sodipodi:docname="theatre.svg"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <sodipodi:namedview
+     id="namedview7"
+     pagecolor="#ffffff"
+     bordercolor="#666666"
+     borderopacity="1.0"
+     inkscape:pageshadow="2"
+     inkscape:pageopacity="0.0"
+     inkscape:pagecheckerboard="0"
+     inkscape:document-units="mm"
+     showgrid="false"
+     inkscape:zoom="5.0270061"
+     inkscape:cx="328.82395"
+     inkscape:cy="560.87062"
+     inkscape:window-width="2560"
+     inkscape:window-height="1338"
+     inkscape:window-x="1920"
+     inkscape:window-y="0"
+     inkscape:window-maximized="1"
+     inkscape:current-layer="layer1" />
+  <defs
+     id="defs2" />
+  <g
+     inkscape:label="Layer 1"
+     inkscape:groupmode="layer"
+     id="layer1">
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-weight:normal;font-size:10.5833px;line-height:1.25;font-family:sans-serif;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.264583"
+       x="95.706917"
+       y="144.34425"
+       id="text6507"><tspan
+         sodipodi:role="line"
+         id="tspan6505"
+         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:10.5833px;font-family:'Ubuntu Condensed';-inkscape-font-specification:'Ubuntu Condensed, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;stroke-width:0.264583"
+         x="95.706917"
+         y="144.34425">TRE</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-weight:normal;font-size:10.5833px;line-height:1.25;font-family:'Ubuntu Condensed';fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.264583;-inkscape-font-specification:'Ubuntu Condensed, Normal';font-stretch:normal;font-variant:normal;font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal"
+       x="70.34848"
+       y="144.28323"
+       id="text1815"><tspan
+         sodipodi:role="line"
+         id="tspan1813"
+         style="stroke-width:0.264583;-inkscape-font-specification:'Ubuntu Condensed, Normal';font-family:'Ubuntu Condensed';font-weight:normal;font-style:normal;font-stretch:normal;font-variant:normal;font-size:10.58330002px;font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal"
+         x="70.34848"
+         y="144.28323">THE</tspan></text>
+    <g
+       style="fill:#000000"
+       id="g26758"
+       transform="matrix(-0.02221993,0,0,-0.02344692,95.891664,145.7496)">
+      <g
+         id="SVGRepo_bgCarrier"
+         stroke-width="0" />
+      <g
+         id="SVGRepo_tracerCarrier"
+         stroke-linecap="round"
+         stroke-linejoin="round" />
+      <g
+         id="SVGRepo_iconCarrier"> <g
+   id="g26738"> <polygon
+   style="fill:#383838"
+   points="0,156 232,428 128.889,156 "
+   id="polygon26722" />
+ <polygon
+   style="fill:#383838"
+   points="335.111,156 232,428 464,156 "
+   id="polygon26724" />
+ <polygon
+   style="fill:#dbdbdb"
+   points="232,156 335.111,156 232,36 128.889,156 "
+   id="polygon26726" />
+ <polygon
+   style="fill:#a3a3a3"
+   points="232,156 128.889,156 232,428 335.111,156 "
+   id="polygon26728" />
+ <polygon
+   style="fill:#a3a3a3"
+   points="104,36 0,156 128.889,156 "
+   id="polygon26730" />
+ <polygon
+   style="fill:#dbdbdb"
+   points="464,156 360,36 335.111,156 "
+   id="polygon26732" />
+ <polygon
+   style="fill:#383838"
+   points="360,36 232,36 335.111,156 "
+   id="polygon26734" />
+ <polygon
+   style="fill:#383838"
+   points="232,36 104,36 128.889,156 "
+   id="polygon26736" />
+ </g>
+ </g>
+    </g>
+  </g>
+</svg>

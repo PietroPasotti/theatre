@@ -17,6 +17,8 @@ from qtpy.QtWidgets import QLabel
 from qtpy.QtGui import QIcon
 
 from theatre.helpers import get_icon, get_color
+from theatre.logger import logger
+from theatre.scenario_json import parse_event
 from theatre.trace_tree_widget.event_dialog import EventSpec
 
 if typing.TYPE_CHECKING:
@@ -153,6 +155,12 @@ class EventEdge(_Edge):
         # self.grEdge.set_label(spec.event.name)
 
     def serialize(self):
+        if not self.end_socket or not self.start_socket:
+            raise RuntimeError('cannot serialize! missing socket')
+        if not self._event_spec:
+            logger.warning('should not quite serialize: event edge '
+                           'underspecified, missing event spec')
+
         out = super().serialize()
         out["event_spec"] = asdict(self._event_spec) if self._event_spec else None
         return out
@@ -160,9 +168,10 @@ class EventEdge(_Edge):
     def deserialize(
         self, data: dict, hashmap: dict = {}, restore_id: bool = True, *args, **kwargs
     ) -> bool:
-        evt_spec = data.pop("event_spec")
+        evt_spec = data.get("event_spec", None)
         if evt_spec:
-            self.set_event_spec(EventSpec(**evt_spec))
+            event = parse_event(evt_spec['event'])
+            self.set_event_spec(EventSpec(event, evt_spec['env']))
         return super().deserialize(data, hashmap, restore_id, *args, **kwargs)
 
 

@@ -18,8 +18,8 @@ from qtpy.QtGui import QPixmap
 from qtpy.QtWidgets import QAction, QGraphicsProxyWidget, QMenu
 from qtpy.QtWidgets import QVBoxLayout
 
-from theatre.logger import logger
 from theatre.helpers import get_icon
+from theatre.logger import logger
 from theatre.theatre_scene import TheatreScene
 from theatre.trace_tree_widget.event_dialog import EventPicker, EventSpec
 from theatre.trace_tree_widget.event_edge import EventEdge
@@ -32,7 +32,7 @@ from theatre.trace_tree_widget.state_node import (
     StateNode,
     GraphicsSocket,
     StateContent,
-    create_new_node,
+    create_new_node, autolayout,
 )
 
 DEBUG = False
@@ -180,15 +180,17 @@ class NodeEditorWidget(_NodeEditorWidget):
     def eval_outputs(self):
         # eval all output nodes
         for node in self.scene.nodes:
-            if node.__class__.__name__ == "CalcNode_Output":
+            try:
                 node.eval()
+            except Exception as e:
+                logger.error(f"error evaluating {node}", exc_info=True)
 
     def on_history_restored(self):
         self.eval_outputs()
 
     def fileLoad(self, filename):
         if super().fileLoad(filename):
-            self.eval_outputs()
+            # self.eval_outputs()
             return True
 
         return False
@@ -301,6 +303,11 @@ class NodeEditorWidget(_NodeEditorWidget):
         mark_dirty_action = context_menu.addAction(get_icon("recycling"), "Mark Dirty")
         evaluate_action = context_menu.addAction(get_icon("start"), "Evaluate")
         edit_action = context_menu.addAction(get_icon("edit"), "Edit")
+
+        branch_submenu = context_menu.addMenu(get_icon("arrow_split"), "Branch")
+        load_branch = branch_submenu.addAction(get_icon("upload_file"), "Load")
+        # todo add builtin branches
+
         # markDirtyDescendantsAct = context_menu.addAction("Mark Descendant Dirty")
         # markInvalidAct = context_menu.addAction("Mark Invalid")
         # unmarkInvalidAct = context_menu.addAction("Unmark Invalid")
@@ -316,6 +323,9 @@ class NodeEditorWidget(_NodeEditorWidget):
             selected.markDirty()
         elif action == evaluate_action:
             selected.eval()
+        elif action == load_branch:
+            self.attach_sequence(selected)
+
         elif action == edit_action:
             selected.open_edit_dialog(self)
             self.state_node_changed.emit(selected)
@@ -387,3 +397,149 @@ class NodeEditorWidget(_NodeEditorWidget):
         node = self._new_node()
         node.set_custom_value(state_intent.state)
         self.state_node_created.emit(state_intent)
+
+    def attach_sequence(self, start: StateNode):
+        data = {
+    "nodes": [
+        {
+            "id": 140279997799504,
+            "title": "State",
+            "pos_x": 153.0,
+            "pos_y": -219.0,
+            "inputs": [
+                {
+                    "id": 140279997794768,
+                    "index": 0,
+                    "multi_edges": False,
+                    "position": 2,
+                    "socket_type": 2
+                }
+            ],
+            "outputs": [
+                {
+                    "id": 140279997796368,
+                    "index": 0,
+                    "multi_edges": True,
+                    "position": 5,
+                    "socket_type": 1
+                }
+            ],
+            "content": {
+                "value": "new state 1"
+            },
+            "name": "State",
+            "value": "new state 1"
+        },
+        {
+            "id": 139955646950224,
+            "title": "State",
+            "pos_x": -130.0,
+            "pos_y": -218.0,
+            "inputs": [
+                {
+                    "id": 139955646944400,
+                    "index": 0,
+                    "multi_edges": False,
+                    "position": 2,
+                    "socket_type": 2
+                }
+            ],
+            "outputs": [
+                {
+                    "id": 139955646949840,
+                    "index": 0,
+                    "multi_edges": True,
+                    "position": 5,
+                    "socket_type": 1
+                }
+            ],
+            "content": {
+                "value": "new state 1"
+            },
+            "name": "State",
+            "value": "new state 1"
+        },
+        {
+            "id": 140279997988688,
+            "title": "State",
+            "pos_x": 436.0,
+            "pos_y": -217.0,
+            "inputs": [
+                {
+                    "id": 140279997985104,
+                    "index": 0,
+                    "multi_edges": False,
+                    "position": 2,
+                    "socket_type": 2
+                }
+            ],
+            "outputs": [
+                {
+                    "id": 140279997980496,
+                    "index": 0,
+                    "multi_edges": True,
+                    "position": 5,
+                    "socket_type": 1
+                }
+            ],
+            "content": {
+                "value": "new state 5"
+            },
+            "name": "State",
+            "value": "new state 5"
+        }
+    ],
+    "edges": [
+        {
+            "id": 140279997802064,
+            "edge_type": 2,
+            "start": 139955646949840,
+            "end": 140279997794768,
+            "event_spec": {
+                "event": {
+                    "name": "start",
+                    "args": None,
+                    "kwargs": {},
+                    "relation": None,
+                    "relation_remote_unit_id": None,
+                    "secret": None,
+                    "container": None,
+                    "action": None
+                },
+                "env": ""
+            }
+        },
+        {
+            "id": 140279998094288,
+            "edge_type": 2,
+            "start": 140279997796368,
+            "end": 140279997985104,
+            "event_spec": {
+                "event": {
+                    "name": "install",
+                    "args": [],
+                    "kwargs": {},
+                    "relation": None,
+                    "relation_remote_unit_id": None,
+                    "secret": None,
+                    "container": None,
+                    "action": None
+                },
+                "env": ""
+            }
+        }
+    ]
+}
+        created_nodes = self.scene.clipboard.deserializeFromClipboard(data)
+        roots: typing.List[StateNode] = list(filter(lambda node: node.is_root, created_nodes))
+
+        if len(roots) == 1:
+            root = roots[0]
+        else:
+            raise RuntimeError(f'expected a single root: got {len(roots)}')
+
+        # swap out loaded root for selected node
+        root.edge_out.start_socket = start.output_socket
+        root.remove()
+
+        autolayout(start)

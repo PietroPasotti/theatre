@@ -42,7 +42,8 @@ if typing.TYPE_CHECKING:
 class TheatreMainWindow(NodeEditorWindow):
     SHOW_MAXIMIZED = False
     RESTORE_ON_OPEN = True
-    FILE_DIALOG_TYPE = "Graph (*.json);;All files (*)"
+    SCENE_EXTENSION = ".scene"
+    FILE_DIALOG_TYPE = f"Scene (*{SCENE_EXTENSION});;All files (*)"
 
     def __init__(self):
         # todo figure out import from file/project
@@ -230,7 +231,7 @@ class TheatreMainWindow(NodeEditorWindow):
         return None
 
     @property
-    def current_node_editor(self):
+    def current_node_editor(self) -> typing.Optional[NodeEditorWidget]:
         return self.getCurrentNodeEditorWidget()
 
     def on_new_custom_state(self):
@@ -241,7 +242,7 @@ class TheatreMainWindow(NodeEditorWindow):
         editor.create_new_custom_state()
 
     def getFileDialogDirectory(self):
-        path = Path(config.APP_DATA_DIR)
+        path = Path(config.APP_DATA_DIR).expanduser().absolute() / 'scenes'
         if not path.exists():
             logger.info(f'app data dir {path} not found; attempting to create')
             try:
@@ -251,35 +252,37 @@ class TheatreMainWindow(NodeEditorWindow):
                 logger.warn(f'could not initialize desired theatre data dir {path}; '
                             f'using "./" instead.')
                 return ""
-        return config.APP_DATA_DIR
+        return str(path)
 
     def onFileSaveAs(self):
-        editor = self.current_node_editor
+        editor: NodeEditorWidget = self.current_node_editor
+        if not editor:
+            self.statusBar().showMessage("No editor; nothing to save.", 5000)
+            return None
 
-        if editor is not None:
-            fname, _ = QFileDialog.getSaveFileName(
-                self,
-                "Save graph to file",
-                self.getFileDialogDirectory(),
-                self.FILE_DIALOG_TYPE,
-            )
-            print(f"selected: {fname!r}")
-            if not fname:
-                return False
+        fname, _ = QFileDialog.getSaveFileName(
+            self,
+            "Save graph to file",
+            self.getFileDialogDirectory(),
+            self.FILE_DIALOG_TYPE,
+            self.FILE_DIALOG_TYPE,
+        )
+        if not fname.endswith(self.SCENE_EXTENSION):
+            fname += self.SCENE_EXTENSION
+            print(f'automatically adding ".scene": '
+                  f'saving to {Path(fname).absolute()}')
 
-            self.onBeforeSaveAs(editor, fname)
-            editor.fileSave(fname)
-            self.statusBar().showMessage(
-                "Successfully saved as %s" % editor.filename, 5000
-            )
+        # print(f"selected: {fname!r}")
+        if not fname:
+            return False
 
-            # support for MDI app
-            if hasattr(editor, "setTitle"):
-                editor.setTitle()
-
-            else:
-                self.setTitle()
-            return True
+        self.onBeforeSaveAs(editor, fname)
+        editor.fileSave(fname)
+        self.statusBar().showMessage(
+            f"Successfully saved as {fname}", 5000
+        )
+        editor.update_title()
+        return True
 
     def get_title(self):
         """Generate window title."""
@@ -471,7 +474,7 @@ class TheatreMainWindow(NodeEditorWindow):
         )
         trace_tree_editor.add_close_event_listener(self.on_sub_window_close)
 
-        subwnd.widget().fileNew()
+        # subwnd.widget().fileNew()
         subwnd.showMaximized()
         return subwnd
 
@@ -522,6 +525,9 @@ def show_main_window():
         window.showMaximized()
     else:
         window.show()
+
+    window.open_if_not_already_open("/home/pietro/.local/share/theatre/scenes/myscene.scene")
+
     sys.exit(app.exec_())
 
 
