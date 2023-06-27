@@ -25,7 +25,6 @@ SUBTREES_DIR = RESOURCES_DIR / 'subtrees'
 STATES_DIR = RESOURCES_DIR / 'states'
 
 
-
 @dataclass
 class StateSpec:  # todo unify with StateIntent
     """Library entry defining a single (root) state.
@@ -50,8 +49,7 @@ class SubtreeSpec:
     name: str = "Anonymous Subtree"
 
 
-def load_subtree_from_file(name: str) -> "SerializedScene":
-    filename = (SUBTREES_DIR / name).with_suffix('.theatre')
+def load_subtree_from_file(filename: Path) -> "SerializedScene":
     if not filename.exists():
         raise FileNotFoundError(filename)
     obj = json.load(filename.open())
@@ -59,15 +57,26 @@ def load_subtree_from_file(name: str) -> "SerializedScene":
 
 
 # Library database
-CATALOGUE = [
+CATALOGUE: [StateSpec | SubtreeSpec] = [
     StateSpec(State(), get_icon("data_object"), "Null State"),
     StateSpec(State(leader=True), get_icon("data_object"), "Leader State"),
-    SubtreeSpec(load_subtree_from_file("test_linear_subtree"), get_icon("arrow_split"), "Startup sequence"),
 ]
 
 
-def get_sorted_entries() -> [StateSpec | SubtreeSpec]:
-    return sorted(CATALOGUE, key=lambda spec: spec.name)
+def _load_all_builtin_subtrees():
+    for filename in SUBTREES_DIR.glob('*.theatre'):
+        CATALOGUE.append(
+            SubtreeSpec(
+                graph=load_subtree_from_file(filename),
+                icon=get_icon("arrow_split"),
+                name=filename.name.split('.')[0].replace('_', ' ').title()
+            )
+        )
+
+
+def get_sorted_entries(type_: type | typing.Tuple[type, ...] = None) -> [StateSpec | SubtreeSpec]:
+    entries = filter(lambda x: isinstance(x, type_), CATALOGUE) if type_ else CATALOGUE
+    return sorted(entries, key=lambda spec: spec.name)
 
 
 def get_spec(name: str) -> StateSpec | SubtreeSpec:
@@ -79,6 +88,7 @@ class Library(QListWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)
+        _load_all_builtin_subtrees()
         self.initUI()
 
     def initUI(self):

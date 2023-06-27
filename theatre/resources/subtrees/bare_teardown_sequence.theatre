@@ -1,13 +1,13 @@
 {
     "nodes": [
         {
-            "id": 140279997799504,
+            "id": 139783107717712,
             "title": "State",
-            "pos_x": 153.0,
-            "pos_y": -219.0,
+            "pos_x": 73.0,
+            "pos_y": -365.0,
             "inputs": [
                 {
-                    "id": 140279997794768,
+                    "id": 139783107720912,
                     "index": 0,
                     "multi_edges": false,
                     "position": 2,
@@ -16,7 +16,7 @@
             ],
             "outputs": [
                 {
-                    "id": 140279997796368,
+                    "id": 139783107730448,
                     "index": 0,
                     "multi_edges": true,
                     "position": 5,
@@ -24,19 +24,19 @@
                 }
             ],
             "content": {
-                "value": "new state 1"
+                "value": "unit ready to die"
             },
             "name": "State",
-            "value": "new state 1"
+            "value": "unit ready to die"
         },
         {
-            "id": 139955646950224,
+            "id": 139783369406672,
             "title": "State",
-            "pos_x": -130.0,
-            "pos_y": -218.0,
+            "pos_x": -235.0,
+            "pos_y": -380.0,
             "inputs": [
                 {
-                    "id": 139955646944400,
+                    "id": 139783107546000,
                     "index": 0,
                     "multi_edges": false,
                     "position": 2,
@@ -45,7 +45,7 @@
             ],
             "outputs": [
                 {
-                    "id": 139955646949840,
+                    "id": 139783263205520,
                     "index": 0,
                     "multi_edges": true,
                     "position": 5,
@@ -53,19 +53,19 @@
                 }
             ],
             "content": {
-                "value": "new state 1"
+                "value": "unit stopped"
             },
             "name": "State",
-            "value": "new state 1"
+            "value": "unit stopped"
         },
         {
-            "id": 140279997988688,
+            "id": 139783107124944,
             "title": "State",
-            "pos_x": 436.0,
-            "pos_y": -217.0,
+            "pos_x": -565.0,
+            "pos_y": -388.0,
             "inputs": [
                 {
-                    "id": 140279997985104,
+                    "id": 139783107133392,
                     "index": 0,
                     "multi_edges": false,
                     "position": 2,
@@ -74,7 +74,7 @@
             ],
             "outputs": [
                 {
-                    "id": 140279997980496,
+                    "id": 139783107124240,
                     "index": 0,
                     "multi_edges": true,
                     "position": 5,
@@ -82,22 +82,22 @@
                 }
             ],
             "content": {
-                "value": "new state 5"
+                "value": "root"
             },
             "name": "State",
-            "value": "new state 5"
+            "value": "root"
         }
     ],
     "edges": [
         {
-            "id": 140279997802064,
+            "id": 139783107737168,
             "edge_type": 2,
-            "start": 139955646949840,
-            "end": 140279997794768,
+            "start": 139783263205520,
+            "end": 139783107720912,
             "event_spec": {
                 "event": {
-                    "name": "start",
-                    "args": null,
+                    "name": "remove",
+                    "args": [],
                     "kwargs": {},
                     "relation": null,
                     "relation_remote_unit_id": null,
@@ -109,13 +109,13 @@
             }
         },
         {
-            "id": 140279998094288,
+            "id": 139783263203280,
             "edge_type": 2,
-            "start": 140279997796368,
-            "end": 140279997985104,
+            "start": 139783107124240,
+            "end": 139783107546000,
             "event_spec": {
                 "event": {
-                    "name": "install",
+                    "name": "stop",
                     "args": [],
                     "kwargs": {},
                     "relation": null,

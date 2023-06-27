@@ -23,7 +23,7 @@ from qtpy.QtWidgets import (
     QFileDialog,
 )
 
-from theatre import config
+from theatre import config, __version__
 from theatre.helpers import get_icon, toggle_visible, show_error_dialog
 from theatre.logger import logger
 from theatre.trace_inspector import TraceInspectorWidget
@@ -352,12 +352,18 @@ class TheatreMainWindow(NodeEditorWindow):
             dumpException(e)
 
     def about(self):
+        about_txt = '\n'.join(
+            (
+                f"This is Theatre {__version__}.",
+                f"python: {sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}",
+                f"scenario: {version('ops-scenario')}"
+            )
+        )
+
         QMessageBox.about(
             self,
-            f"""This is awesome! 
-            
-            python: {sys.version_info}
-            scenario: {version('scenario')}"""
+            f"About",
+            about_txt
         )
 
     def createMenus(self):

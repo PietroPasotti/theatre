@@ -1,9 +1,8 @@
 # Copyright 2022 Canonical Ltd.
 # See LICENSE file for licensing details.
 import typing
+from functools import partial
 
-import ops
-from PyQt5.QtCore import QPointF
 from PyQt5.QtGui import QDragMoveEvent, QWheelEvent
 from nodeeditor.node_edge import EDGE_TYPE_DEFAULT
 from nodeeditor.node_edge_dragging import EdgeDragging as _EdgeDragging
@@ -257,7 +256,7 @@ class NodeEditorWidget(_NodeEditorWidget):
 
     def _create_new_state_actions(self):
         self.state_actions = {}
-        for state in get_sorted_entries():
+        for state in get_sorted_entries(StateSpec):
             self.state_actions[state.name] = QAction(state.icon, state.name)
             self.state_actions[state.name].setData(state.name)
 
@@ -362,18 +361,32 @@ class NodeEditorWidget(_NodeEditorWidget):
             return
 
         context_menu = QMenu(self)
-        mark_dirty_action = context_menu.addAction(get_icon("recycling"), "Mark Dirty")
-        evaluate_action = context_menu.addAction(get_icon("start"), "Evaluate")
+        mark_dirty_action = context_menu.addAction(
+            get_icon("recycling"), "Mark Dirty", selected.markDirty)
+        evaluate_action = context_menu.addAction(
+            get_icon("start"),  "Evaluate", selected.eval
+        )
+        force_reeval = context_menu.addAction(
+            get_icon("start"), "Force-reevaluate")
         edit_action = context_menu.addAction(get_icon("edit"), "Edit")
 
         branch_submenu = context_menu.addMenu(get_icon("arrow_split"), "Branch")
-        load_branch = branch_submenu.addAction(get_icon("upload_file"), "Load")
-        # todo add builtin branches
+        branch_actions = []
+        subtree: SubtreeSpec
+        for subtree in get_sorted_entries(SubtreeSpec):
+            branch_action = branch_submenu.addAction(
+                subtree.icon, subtree.name, partial(self._paste_subtree, selected, subtree.graph)
+            )
+            branch_actions.append(branch_action)
 
         # markDirtyDescendantsAct = context_menu.addAction("Mark Descendant Dirty")
         # markInvalidAct = context_menu.addAction("Mark Invalid")
         # unmarkInvalidAct = context_menu.addAction("Unmark Invalid")
         # evalAct = context_menu.addAction("Eval")
+        if selected.value:  # if the node has a value
+            evaluate_action.setEnabled(False)
+        else:
+            mark_dirty_action.setEnabled(False)
 
         if not selected.is_root:
             edit_action.setEnabled(False)
@@ -381,18 +394,15 @@ class NodeEditorWidget(_NodeEditorWidget):
         action = context_menu.exec_(self.mapToGlobal(event.pos()))
 
         # dispatch
-        if action == mark_dirty_action:
+        if action == force_reeval:
             selected.markDirty()
-        elif action == evaluate_action:
             selected.eval()
-        elif action == load_branch:
-            self._attach_sequence(selected)
-
         elif action == edit_action:
             selected.open_edit_dialog(self)
             self.state_node_changed.emit(selected)
         else:
-            logger.error(f"unhandled action: {action}")
+            logger.info(f'chosen action: {action}')
+            # other actions should handle themselves
 
     def _on_edge_context_menu(self, event, edge: "EventEdge"):
         context_menu = QMenu(self)
@@ -440,7 +450,8 @@ class NodeEditorWidget(_NodeEditorWidget):
         menu.addAction(self._new_state_action)
 
         for state in get_sorted_entries():
-            menu.addAction(self.state_actions[state.name])
+            if isinstance(state, StateSpec):
+                menu.addAction(self.state_actions[state.name])
 
         action = menu.exec_(self.mapToGlobal(event.pos()))
         logger.info(f'triggered {action}')

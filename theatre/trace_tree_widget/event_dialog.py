@@ -15,8 +15,7 @@ from PyQt5.QtWidgets import (
     QPlainTextEdit,
     QDialog,
     QDialogButtonBox,
-    QComboBox, QAction,
-)
+    QComboBox, )
 from scenario import Event
 from scenario.state import ACTION_EVENT_SUFFIX, RELATION_EVENTS_SUFFIX, STORAGE_EVENTS_SUFFIX, \
     PEBBLE_READY_EVENT_SUFFIX
