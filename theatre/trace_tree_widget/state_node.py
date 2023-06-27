@@ -169,8 +169,13 @@ class StateNode(Node):
         self.grNode.title_item.setParent(self.content)
         self._update_title()
 
-        self.input_socket: Socket = self.inputs[0]
-        self.output_socket: Socket = self.outputs[0]
+    @property
+    def input_socket(self) -> Socket:
+        return self.inputs[0]
+
+    @property
+    def output_socket(self) -> Socket:
+        return self.outputs[0]
 
     def set_custom_value(self, state: State):
         """Overrides any value with this state and configures this as a custom node."""
@@ -273,7 +278,7 @@ class StateNode(Node):
 
         with contextlib.redirect_stdout(StreamWrapper()):
             ctx = scenario.Context(
-                charm_type=self.scene.charm_type, meta={"name": "dummy"}
+                charm_type=self.scene.charm_spec.charm_type, meta={"name": "dummy"}
             )
             state_out = ctx.run(state=state_in.state, event=event_spec.event)
 

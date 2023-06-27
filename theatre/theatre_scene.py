@@ -7,15 +7,31 @@ import typing
 import ops
 from nodeeditor.node_scene import Scene as _Scene, InvalidFile
 from nodeeditor.node_scene_clipboard import SceneClipboard as _SceneClipboard
-from qtpy.QtCore import QObject, Signal
+from qtpy.QtCore import QObject
+from qtpy.QtCore import QPoint
+from qtpy.QtCore import Signal
+from qtpy.QtGui import QDragMoveEvent
+from qtpy.QtWidgets import QGraphicsItem
+from qtpy.QtWidgets import QGraphicsProxyWidget
 
 from theatre.logger import logger
 from theatre.trace_tree_widget.event_edge import EventEdge
-from theatre.trace_tree_widget.state_node import StateNode
+from theatre.trace_tree_widget.library_widget import (
+    STATE_SPEC_MIMETYPE,
+    SUBTREE_SPEC_MIMETYPE,
+)
+from theatre.trace_tree_widget.state_node import (
+    StateNode,
+    GraphicsSocket,
+    StateContent,
+)
+if typing.TYPE_CHECKING:
+    from scenario.state import _CharmSpec
 
+SerializedScene = dict  # TODO
 
 class SceneClipboard(_SceneClipboard):
-    def deserializeFromClipboard(self, data: dict, *args, **kwargs):
+    def deserializeFromClipboard(self, data: SerializedScene, *args, **kwargs):
         """
         Deserializes data from Clipboard.
 
@@ -95,8 +111,15 @@ class TheatreScene(QObject, _Scene):
     def __init__(self):
         super().__init__()
         # FIXME: Dynamically set by MainWindow
-        self.charm_type: typing.Optional[typing.Type[ops.CharmBase]] = None
+        self._charm_spec: "_CharmSpec" | None = None
         self.clipboard = SceneClipboard(self)
+
+    def set_charm_spec(self, spec: "_CharmSpec"):
+        self._charm_spec = spec
+
+    @property
+    def charm_spec(self):
+        return self._charm_spec
 
     def loadFromFile(self, filename: str):
         with open(filename, "r") as file:
@@ -182,3 +205,38 @@ class TheatreScene(QObject, _Scene):
             edge.remove()
 
         return True
+
+    def get_node_at(self, pos: QPoint) -> StateNode | None:
+        nearest = self.find_nearest_parent_at(pos, (GraphicsSocket, StateContent))
+        if nearest is None:
+            return None
+        if isinstance(nearest, GraphicsSocket):
+            return nearest.socket.node
+        elif isinstance(nearest, StateContent):
+            return nearest.node
+        else:
+            raise TypeError(nearest)
+
+    def find_nearest_parent_at(self, pos: QPoint,
+                                types: typing.Tuple[type, ...]
+                                ) -> QGraphicsItem | None:
+        """Climb up the widget hierarchy until we find a parent of one of the desired types."""
+        item = self.getItemAt(pos)
+
+        if not item:
+            return None
+
+        if type(item) == QGraphicsProxyWidget:
+            item = item.widget()
+
+        while item:
+            if isinstance(item, types):
+                return item
+
+            # happens on edges
+            if not hasattr(item, "parent"):
+                logger.warn(f'encountered unexpected item type while climbing up parents: {item}')
+                return None
+
+            item = item.parent()
+        return item

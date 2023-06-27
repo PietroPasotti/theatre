@@ -1,0 +1,131 @@
+{
+    "nodes": [
+        {
+            "id": 140279997799504,
+            "title": "State",
+            "pos_x": 153.0,
+            "pos_y": -219.0,
+            "inputs": [
+                {
+                    "id": 140279997794768,
+                    "index": 0,
+                    "multi_edges": false,
+                    "position": 2,
+                    "socket_type": 2
+                }
+            ],
+            "outputs": [
+                {
+                    "id": 140279997796368,
+                    "index": 0,
+                    "multi_edges": true,
+                    "position": 5,
+                    "socket_type": 1
+                }
+            ],
+            "content": {
+                "value": "new state 1"
+            },
+            "name": "State",
+            "value": "new state 1"
+        },
+        {
+            "id": 139955646950224,
+            "title": "State",
+            "pos_x": -130.0,
+            "pos_y": -218.0,
+            "inputs": [
+                {
+                    "id": 139955646944400,
+                    "index": 0,
+                    "multi_edges": false,
+                    "position": 2,
+                    "socket_type": 2
+                }
+            ],
+            "outputs": [
+                {
+                    "id": 139955646949840,
+                    "index": 0,
+                    "multi_edges": true,
+                    "position": 5,
+                    "socket_type": 1
+                }
+            ],
+            "content": {
+                "value": "new state 1"
+            },
+            "name": "State",
+            "value": "new state 1"
+        },
+        {
+            "id": 140279997988688,
+            "title": "State",
+            "pos_x": 436.0,
+            "pos_y": -217.0,
+            "inputs": [
+                {
+                    "id": 140279997985104,
+                    "index": 0,
+                    "multi_edges": false,
+                    "position": 2,
+                    "socket_type": 2
+                }
+            ],
+            "outputs": [
+                {
+                    "id": 140279997980496,
+                    "index": 0,
+                    "multi_edges": true,
+                    "position": 5,
+                    "socket_type": 1
+                }
+            ],
+            "content": {
+                "value": "new state 5"
+            },
+            "name": "State",
+            "value": "new state 5"
+        }
+    ],
+    "edges": [
+        {
+            "id": 140279997802064,
+            "edge_type": 2,
+            "start": 139955646949840,
+            "end": 140279997794768,
+            "event_spec": {
+                "event": {
+                    "name": "start",
+                    "args": null,
+                    "kwargs": {},
+                    "relation": null,
+                    "relation_remote_unit_id": null,
+                    "secret": null,
+                    "container": null,
+                    "action": null
+                },
+                "env": ""
+            }
+        },
+        {
+            "id": 140279998094288,
+            "edge_type": 2,
+            "start": 140279997796368,
+            "end": 140279997985104,
+            "event_spec": {
+                "event": {
+                    "name": "install",
+                    "args": [],
+                    "kwargs": {},
+                    "relation": null,
+                    "relation_remote_unit_id": null,
+                    "secret": null,
+                    "container": null,
+                    "action": null
+                },
+                "env": ""
+            }
+        }
+    ]
+}

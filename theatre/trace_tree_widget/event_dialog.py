@@ -2,7 +2,10 @@
 # See LICENSE file for licensing details.
 import typing
 from dataclasses import dataclass
+from itertools import chain
 
+from scenario.state import ACTION_EVENT_SUFFIX, RELATION_EVENTS_SUFFIX, STORAGE_EVENTS_SUFFIX, \
+    PEBBLE_READY_EVENT_SUFFIX
 from PyQt5 import QtGui
 from PyQt5.QtGui import QFont, QIntValidator
 from PyQt5.QtWidgets import (
@@ -14,10 +17,35 @@ from PyQt5.QtWidgets import (
     QPlainTextEdit,
     QDialog,
     QDialogButtonBox,
-    QComboBox,
+    QComboBox, QAction,
 )
 from scenario import Event
 
+if typing.TYPE_CHECKING:
+    from scenario.state import _CharmSpec
+
+LIFECYCLE_EVENTS = (
+    "collect-metrics",
+    "config-changed",
+    "install",
+    "leader-elected",
+    "leader-settings-changed",
+    "post-series-upgrade",
+    "pre-series-upgrade",
+    "remove",
+    "start",
+    "stop",
+    "update-status",
+    "upgrade-charm",
+)
+
+# fixme: when scenario 4.0 lands, replace with scenario.state.SECRET_EVENTS
+SECRET_EVENTS = (
+    "secret-changed",
+    "secret-expired",
+    "secret-remove",
+    "secret-rotate",
+)
 
 @dataclass
 class EventSpec:
@@ -93,13 +121,6 @@ class IntField(Field):
         layout.addWidget(self.lineEdit)
         layout.addStretch()
 
-    #
-    # def setLabelWidth(self, width):
-    #     self.label.setFixedWidth(width)
-    #
-    # def setInputWidth(self, width):
-    #     self.lineEdit.setFixedWidth(width)
-
     def get_value(self):
         return int(self.lineEdit.text())
 
@@ -127,13 +148,6 @@ class StrField(Field):
         layout.addWidget(self.lineEdit)
         layout.addStretch()
 
-    #
-    # def setLabelWidth(self, width):
-    #     self.label.setFixedWidth(width)
-    #
-    # def setInputWidth(self, width):
-    #     self.lineEdit.setFixedWidth(width)
-
     def get_value(self) -> str:
         return self.lineEdit.text()
 
@@ -160,20 +174,14 @@ class TextField(Field):
         layout.addWidget(self.lineEdit)
         layout.addStretch()
 
-    #
-    # def setLabelWidth(self, width):
-    #     self.label.setFixedWidth(width)
-    #
-    # def setInputWidth(self, width):
-    #     self.lineEdit.setFixedWidth(width)
-
     def get_value(self) -> str:
         return self.lineEdit.toPlainText()
 
 
 class EventPicker(QDialog):
-    def __init__(self, parent=None):
+    def __init__(self, charm_spec: "_CharmSpec", parent=None):
         super().__init__(parent)
+        self._charm_spec = charm_spec
 
         self.setWindowTitle("Let's fire an event!")
 
@@ -197,11 +205,46 @@ class EventPicker(QDialog):
         self.setLayout(self.layout)
         self.confirmed = False
 
-    def _add_events(self, dropdown):
-        dropdown.addItem("start")
-        dropdown.addItem("stop")
-        dropdown.addItem("install")
-        dropdown.addItem("foo-relation-changed")
+    def _add_events(self, dropdown: QComboBox):
+        def _add_sep():
+            sep = QAction()
+            sep.setSeparator(True)
+            dropdown.addAction(sep)
+
+        # Lifecycle events
+        for name in LIFECYCLE_EVENTS:
+            dropdown.addItem(name)
+        _add_sep()
+        # Lifecycle events
+        for name in SECRET_EVENTS:
+            dropdown.addItem(name)
+        _add_sep()
+        # Dynamically defined builtin events
+
+        charm_spec = self._charm_spec
+        builtins = []
+        for relation_name in chain(
+                charm_spec.meta.get("requires", ()),
+                charm_spec.meta.get("provides", ()),
+                charm_spec.meta.get("peers", ()),
+        ):
+            relation_name = relation_name.replace("-", "_")
+            for relation_evt_suffix in RELATION_EVENTS_SUFFIX:
+                builtins.append(relation_name + relation_evt_suffix)
+
+        for storage_name in charm_spec.meta.get("storages", ()):
+            storage_name = storage_name.replace("-", "_")
+            for storage_evt_suffix in STORAGE_EVENTS_SUFFIX:
+                builtins.append(storage_name + storage_evt_suffix)
+
+        for action_name in charm_spec.actions or ():
+            action_name = action_name.replace("-", "_")
+            builtins.append(action_name + ACTION_EVENT_SUFFIX)
+
+        for container_name in charm_spec.meta.get("containers", ()):
+            container_name = container_name.replace("-", "_")
+            builtins.append(container_name + PEBBLE_READY_EVENT_SUFFIX)
+
 
     def closeEvent(self, a0: QtGui.QCloseEvent) -> None:
         super().closeEvent(a0)

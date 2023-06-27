@@ -27,9 +27,6 @@ if typing.TYPE_CHECKING:
     from theatre.trace_tree_widget.state_node import StateNode
 
 
-class EventNameLabel(QLabel):
-    """Label representing an event's name."""
-
 class GraphicsEdge(QDMGraphicsEdge):
     def __init__(self, edge: 'EventEdge', parent: QWidget = None):
         super().__init__(edge, parent)

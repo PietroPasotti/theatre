@@ -24,8 +24,8 @@ from qtpy.QtWidgets import (
 )
 
 from theatre import config
-from theatre.logger import logger
 from theatre.helpers import get_icon, toggle_visible, show_error_dialog
+from theatre.logger import logger
 from theatre.trace_inspector import TraceInspectorWidget
 from theatre.trace_tree_widget.library_widget import Library
 from theatre.trace_tree_widget.node_editor_widget import NodeEditorWidget
@@ -46,6 +46,8 @@ class TheatreMainWindow(NodeEditorWindow):
     FILE_DIALOG_TYPE = f"Scene (*{SCENE_EXTENSION});;All files (*)"
 
     def __init__(self):
+
+        from scenario.state import _CharmSpec
         # todo figure out import from file/project
         class DummyCharm(ops.CharmBase):
             def __init__(self, framework: ops.Framework):
@@ -63,7 +65,11 @@ class TheatreMainWindow(NodeEditorWindow):
 
                 self.unit.status = random.choice(opts)
 
-        self.charm_type: typing.Optional[typing.Type[ops.CharmBase]] = DummyCharm
+        self._charm_spec: _CharmSpec = _CharmSpec(
+            charm_type=DummyCharm,
+            meta={'name': 'dummy charm',
+                  'requires': {'foo': {'interface': 'bar'}}}
+        )
 
         super().__init__()
 
@@ -131,6 +137,7 @@ class TheatreMainWindow(NodeEditorWindow):
                 logger.debug("buggity-bug! This should not happen.")
 
         self.setTitle()
+        self.setWindowIcon(get_icon("theatre_logo"))
 
     def closeEvent(self, event):
         self.mdiArea.closeAllSubWindows()
@@ -286,10 +293,11 @@ class TheatreMainWindow(NodeEditorWindow):
 
     def get_title(self):
         """Generate window title."""
-        title = f"Theatre[{self.charm_type.__name__}]: Trace Tree Editor"
+        title = f"Theatre[{self._charm_spec.charm_type.__name__}]: Trace Tree Editor"
         current_trace_tree = self.mdiArea.currentSubWindow()
         if current_trace_tree:
             title += f" - {current_trace_tree.widget().getUserFriendlyFilename()}"
+        return title
 
     def setTitle(self):
         """Update window title."""
@@ -317,7 +325,7 @@ class TheatreMainWindow(NodeEditorWindow):
             self.mdiArea.setActiveSubWindow(existing)
         else:
             # we need to create new subWindow and open the file
-            editor_widget = NodeEditorWidget(self.charm_type, self.mdiArea)
+            editor_widget = NodeEditorWidget(self._charm_spec, self.mdiArea)
             if editor_widget.fileLoad(fname):
                 self.statusBar().showMessage("File %s loaded" % fname, 5000)
                 self.create_new_trace_tree_tab(editor_widget)
@@ -454,13 +462,13 @@ class TheatreMainWindow(NodeEditorWindow):
         self.statusBar().showMessage("Ready")
 
     def create_new_trace_tree_tab(self, widget: NodeEditorWidget = None):
-        trace_tree_editor = widget or NodeEditorWidget(self.charm_type, self.mdiArea)
+        trace_tree_editor = widget or NodeEditorWidget(self._charm_spec, self.mdiArea)
         subwnd = self.mdiArea.addSubWindow(trace_tree_editor)
         subwnd.setWindowIcon(self.empty_icon)
         self.mdiArea.setActiveSubWindow(subwnd)  # this doesn't always work
 
         # FIXME: horrible
-        trace_tree_editor.scene.charm_type = self.charm_type
+        trace_tree_editor.scene.set_charm_spec(self._charm_spec)
         # state reevaluated --> (re)display in trace inspector
         trace_tree_editor.state_node_changed.connect(
             self._trace_inspector.on_node_changed

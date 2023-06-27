@@ -3,6 +3,7 @@
 import typing
 
 import ops
+from PyQt5.QtGui import QDragMoveEvent, QWheelEvent
 from nodeeditor.node_edge import EDGE_TYPE_DEFAULT
 from nodeeditor.node_edge_dragging import EdgeDragging as _EdgeDragging
 from nodeeditor.node_editor_widget import NodeEditorWidget as _NodeEditorWidget
@@ -11,6 +12,7 @@ from nodeeditor.node_graphics_view import MODE_EDGE_DRAG, QDMGraphicsView
 from nodeeditor.node_node import Node
 from nodeeditor.utils import dumpException
 from qtpy.QtCore import QDataStream, QIODevice, Qt
+from qtpy.QtCore import QEvent
 from qtpy.QtCore import QPoint
 from qtpy.QtCore import Signal
 from qtpy.QtGui import QMouseEvent
@@ -20,12 +22,12 @@ from qtpy.QtWidgets import QVBoxLayout
 
 from theatre.helpers import get_icon
 from theatre.logger import logger
-from theatre.theatre_scene import TheatreScene
+from theatre.theatre_scene import TheatreScene, SerializedScene
 from theatre.trace_tree_widget.event_dialog import EventPicker, EventSpec
 from theatre.trace_tree_widget.event_edge import EventEdge
 from theatre.trace_tree_widget.library_widget import (
-    STATE_SPEC_LIBRARY_ENTRY_MIMETYPE,
-    get_sorted_state_specs, get_spec,
+    STATE_SPEC_MIMETYPE,
+    get_sorted_entries, get_spec, load_subtree_from_file, StateSpec, SubtreeSpec, SUBTREE_SPEC_MIMETYPE,
 )
 from theatre.trace_tree_widget.new_state_dialog import NewStateDialog, StateIntent
 from theatre.trace_tree_widget.state_node import (
@@ -35,19 +37,11 @@ from theatre.trace_tree_widget.state_node import (
     create_new_node, autolayout,
 )
 
+if typing.TYPE_CHECKING:
+    from scenario.state import _CharmSpec
+
 DEBUG = False
 DEBUG_CONTEXT = False
-
-
-def choose_event(parent=None) -> typing.Optional[EventSpec]:
-    event_picker = EventPicker(parent)
-    event_picker.exec()
-
-    if not event_picker.confirmed:
-        logger.info("event picker aborted")
-        return
-
-    return event_picker.get_event()
 
 
 def get_new_custom_state(parent=None) -> typing.Optional[StateIntent]:
@@ -84,6 +78,46 @@ class GraphicsView(QDMGraphicsView):
             event.ignore()
             super().leftMouseButtonPress(event)
 
+    def dragMoveEvent(self, event: QDragMoveEvent):
+        mime_data = event.mimeData()
+        scene: TheatreScene = self.parent().scene
+        if mime_data.hasFormat(STATE_SPEC_MIMETYPE):
+            is_hovering_bg = scene.getItemAt(event.pos()) is None
+            event.setAccepted(is_hovering_bg)
+        elif mime_data.hasFormat(SUBTREE_SPEC_MIMETYPE):
+            is_hovering_node = scene.get_node_at(event.pos())
+            event.setAccepted(bool(is_hovering_node))
+        else:
+            event.setAccepted(False)
+
+    def wheelEvent(self, event: QWheelEvent):
+        """overridden Qt's ``wheelEvent``. This handles zooming"""
+        if event.modifiers() & Qt.CTRL:
+            zoom_out_factor = 1 / self.zoomInFactor
+            delta = event.angleDelta().y()
+            if delta == 0:  # wheel button being pressed
+                event.ignore()
+                return
+
+            if delta > 0:
+                zoom_factor = self.zoomInFactor
+                self.zoom += self.zoomStep
+            else:
+                zoom_factor = zoom_out_factor
+                self.zoom -= self.zoomStep
+
+            clamped = False
+            if self.zoom < self.zoomRange[0]:
+                self.zoom, clamped = self.zoomRange[0], True
+            if self.zoom > self.zoomRange[1]:
+                self.zoom, clamped = self.zoomRange[1], True
+
+            # set scene scale
+            if not clamped or self.zoomClamp is False:
+                self.scale(zoom_factor, zoom_factor)
+        else:
+            event.ignore()
+
 
 class NodeEditorWidget(_NodeEditorWidget):
     view: GraphicsView
@@ -92,12 +126,12 @@ class NodeEditorWidget(_NodeEditorWidget):
     state_node_changed = Signal(StateNode)
     state_node_clicked = Signal(StateNode)
 
-    def __init__(self, charm_type: typing.Type[ops.CharmBase], parent=None):
+    def __init__(self, charm_spec: "_CharmSpec", parent=None):
         super().__init__(parent)
 
         self.update_title()
         self.chain_on_new_node = True
-        self.charm_type = charm_type
+        self._charm_spec = charm_spec
 
         self._create_new_state_actions()
 
@@ -143,7 +177,7 @@ class NodeEditorWidget(_NodeEditorWidget):
         - create a new node where we are.
         - link old node to new node.
         """
-        event_spec = choose_event()
+        event_spec = self.choose_event()
         scene: "TheatreScene" = self.scene
 
         new_state_node = create_new_node(scene, self.view, pos)
@@ -169,6 +203,19 @@ class NodeEditorWidget(_NodeEditorWidget):
 
         else:
             dragging.edgeDragEnd(None)
+
+    def choose_event(self) -> typing.Optional[EventSpec]:
+        event_picker = EventPicker(
+            charm_spec=self._charm_spec,
+            parent=self
+        )
+        event_picker.exec()
+
+        if not event_picker.confirmed:
+            logger.info("event picker aborted")
+            return
+
+        return event_picker.get_event()
 
     @staticmethod
     def _get_node_class_from_data(data):
@@ -197,7 +244,7 @@ class NodeEditorWidget(_NodeEditorWidget):
 
     def _create_new_state_actions(self):
         self.state_actions = {}
-        for state in get_sorted_state_specs():
+        for state in get_sorted_entries():
             self.state_actions[state.name] = QAction(state.icon, state.name)
             self.state_actions[state.name].setData(state.name)
 
@@ -212,59 +259,61 @@ class NodeEditorWidget(_NodeEditorWidget):
             callback(self, event)
 
     def on_drag_enter(self, event):
-        if event.mimeData().hasFormat(STATE_SPEC_LIBRARY_ENTRY_MIMETYPE):
+        if event.mimeData().hasFormat(STATE_SPEC_MIMETYPE) or event.mimeData().hasFormat(SUBTREE_SPEC_MIMETYPE):
             event.acceptProposedAction()
         else:
             logger.info(f"denied drag enter evt on {self}")
             event.setAccepted(False)
 
-    def on_drop(self, event):
-        if event.mimeData().hasFormat(STATE_SPEC_LIBRARY_ENTRY_MIMETYPE):
-            event_data = event.mimeData().data(STATE_SPEC_LIBRARY_ENTRY_MIMETYPE)
+    def on_drop(self, event: QEvent):
+        # if hovering on background: accept STATE SPEC drops
+        # if hovering on state: accept SUBTREE SPEC drops
+        mime_data = event.mimeData()
+        is_state_spec_drop = mime_data.hasFormat(STATE_SPEC_MIMETYPE)
+        is_subtree_spec_drop = mime_data.hasFormat(SUBTREE_SPEC_MIMETYPE)
+        mimetype = STATE_SPEC_MIMETYPE if is_state_spec_drop else SUBTREE_SPEC_MIMETYPE
+
+        if is_state_spec_drop or is_subtree_spec_drop:
+            event_data = mime_data.data(mimetype)
             data_stream = QDataStream(event_data, QIODevice.ReadOnly)
             pixmap = QPixmap()
             data_stream >> pixmap
             name = data_stream.readQString()
             spec = get_spec(name)
 
-            try:
-                node = create_new_node(
-                    scene=self.scene, view=self.view,
-                    pos=event.pos(),
-                    name=name, icon=spec.icon
-                )
-                node.set_custom_value(spec.state)
-                self.scene.history.storeHistory(
-                    "Created node %s" % node.__class__.__name__
-                )
-            except Exception as e:
-                dumpException(e)
+            if is_state_spec_drop:
+                # sanity check:
+                assert isinstance(spec, StateSpec)
+                self._drop_node(spec, event)
+            else:  # is_subtree_spec_drop
+                assert isinstance(spec, SubtreeSpec)
+                self._drop_subtree(spec, event.pos())
 
             event.setDropAction(Qt.MoveAction)
             event.accept()
         else:
-            # print(" ... drop ignored, not requested format '%s'" % STATE_SPEC_LIBRARY_ENTRY_MIMETYPE)
             event.ignore()
 
-    def find_nearest_parent_at(self, pos: QPoint, types: typing.Tuple[type]):
-        """Climb up the widget hierarchy until we find a parent of one of the desired types."""
-        item = self.scene.getItemAt(pos)
-        if type(item) == QGraphicsProxyWidget:
-            item = item.widget()
+    def _drop_node(self, spec: StateSpec, event: QEvent):
+        node = create_new_node(
+            scene=self.scene, view=self.view,
+            pos=event.pos(),
+            name=spec.name,
+            icon=spec.icon
+        )
+        node.set_custom_value(spec.state)
+        self.scene.history.storeHistory(
+            "Created node %s" % node.__class__.__name__
+        )
 
-        while item:
-            if isinstance(item, types):
-                return item
-
-            if not hasattr(item, "parent"):  # FIXME
-                raise TypeError(f"what kind of item is this? {item}")
-
-            item = item.parent()
-        return item
+    def _drop_subtree(self, spec: SubtreeSpec, pos: QPoint):
+        start = self.scene.get_node_at(pos)
+        self._paste_subtree(start, spec.graph)
+        self.scene.history.storeHistory(f"Added subtree {spec.name}")
 
     def contextMenuEvent(self, event):
         try:
-            item = self.find_nearest_parent_at(
+            item = self.scene.find_nearest_parent_at(
                 event.pos(), (GraphicsSocket, StateContent, QDMGraphicsEdge)
             )
             if isinstance(item, (GraphicsSocket, StateContent)):
@@ -324,7 +373,7 @@ class NodeEditorWidget(_NodeEditorWidget):
         elif action == evaluate_action:
             selected.eval()
         elif action == load_branch:
-            self.attach_sequence(selected)
+            self._attach_sequence(selected)
 
         elif action == edit_action:
             selected.open_edit_dialog(self)
@@ -338,7 +387,7 @@ class NodeEditorWidget(_NodeEditorWidget):
         action = context_menu.exec_(self.mapToGlobal(event.pos()))
 
         if action == change_event_action:
-            event_spec = choose_event()
+            event_spec = self.choose_event()
             edge.set_event_spec(event_spec)  # this will notify the end node
 
         # bezierAct = context_menu.addAction("Bezier Edge")
@@ -377,7 +426,7 @@ class NodeEditorWidget(_NodeEditorWidget):
         menu = QMenu(self)
         menu.addAction(self._new_state_action)
 
-        for state in get_sorted_state_specs():
+        for state in get_sorted_entries():
             menu.addAction(self.state_actions[state.name])
 
         action = menu.exec_(self.mapToGlobal(event.pos()))
@@ -398,138 +447,11 @@ class NodeEditorWidget(_NodeEditorWidget):
         node.set_custom_value(state_intent.state)
         self.state_node_created.emit(state_intent)
 
-    def attach_sequence(self, start: StateNode):
-        data = {
-    "nodes": [
-        {
-            "id": 140279997799504,
-            "title": "State",
-            "pos_x": 153.0,
-            "pos_y": -219.0,
-            "inputs": [
-                {
-                    "id": 140279997794768,
-                    "index": 0,
-                    "multi_edges": False,
-                    "position": 2,
-                    "socket_type": 2
-                }
-            ],
-            "outputs": [
-                {
-                    "id": 140279997796368,
-                    "index": 0,
-                    "multi_edges": True,
-                    "position": 5,
-                    "socket_type": 1
-                }
-            ],
-            "content": {
-                "value": "new state 1"
-            },
-            "name": "State",
-            "value": "new state 1"
-        },
-        {
-            "id": 139955646950224,
-            "title": "State",
-            "pos_x": -130.0,
-            "pos_y": -218.0,
-            "inputs": [
-                {
-                    "id": 139955646944400,
-                    "index": 0,
-                    "multi_edges": False,
-                    "position": 2,
-                    "socket_type": 2
-                }
-            ],
-            "outputs": [
-                {
-                    "id": 139955646949840,
-                    "index": 0,
-                    "multi_edges": True,
-                    "position": 5,
-                    "socket_type": 1
-                }
-            ],
-            "content": {
-                "value": "new state 1"
-            },
-            "name": "State",
-            "value": "new state 1"
-        },
-        {
-            "id": 140279997988688,
-            "title": "State",
-            "pos_x": 436.0,
-            "pos_y": -217.0,
-            "inputs": [
-                {
-                    "id": 140279997985104,
-                    "index": 0,
-                    "multi_edges": False,
-                    "position": 2,
-                    "socket_type": 2
-                }
-            ],
-            "outputs": [
-                {
-                    "id": 140279997980496,
-                    "index": 0,
-                    "multi_edges": True,
-                    "position": 5,
-                    "socket_type": 1
-                }
-            ],
-            "content": {
-                "value": "new state 5"
-            },
-            "name": "State",
-            "value": "new state 5"
-        }
-    ],
-    "edges": [
-        {
-            "id": 140279997802064,
-            "edge_type": 2,
-            "start": 139955646949840,
-            "end": 140279997794768,
-            "event_spec": {
-                "event": {
-                    "name": "start",
-                    "args": None,
-                    "kwargs": {},
-                    "relation": None,
-                    "relation_remote_unit_id": None,
-                    "secret": None,
-                    "container": None,
-                    "action": None
-                },
-                "env": ""
-            }
-        },
-        {
-            "id": 140279998094288,
-            "edge_type": 2,
-            "start": 140279997796368,
-            "end": 140279997985104,
-            "event_spec": {
-                "event": {
-                    "name": "install",
-                    "args": [],
-                    "kwargs": {},
-                    "relation": None,
-                    "relation_remote_unit_id": None,
-                    "secret": None,
-                    "container": None,
-                    "action": None
-                },
-                "env": ""
-            }
-        }
-    ]
-}
+    def _attach_sequence(self, start: StateNode, name="test_linear_subtree"):
+        data = load_subtree_from_file(name)
+        self._paste_subtree(start, data)
+
+    def _paste_subtree(self, start: StateNode, data: SerializedScene):
         created_nodes = self.scene.clipboard.deserializeFromClipboard(data)
         roots: typing.List[StateNode] = list(filter(lambda node: node.is_root, created_nodes))
 
@@ -539,7 +461,17 @@ class NodeEditorWidget(_NodeEditorWidget):
             raise RuntimeError(f'expected a single root: got {len(roots)}')
 
         # swap out loaded root for selected node
-        root.edge_out.start_socket = start.output_socket
+        edge = root.edge_out
+        next_node = edge.end_node
+
         root.remove()
+
+        EventEdge(
+            edge.scene,
+            start.output_socket,
+            next_node.input_socket,
+            edge.edge_type,
+            event_spec=edge.event_spec
+        )
 
         autolayout(start)

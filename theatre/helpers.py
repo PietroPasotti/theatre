@@ -10,6 +10,8 @@ from qtpy.QtGui import QPalette, QColor, QIcon
 from qtpy.QtSvg import QSvgRenderer
 from qtpy.QtWidgets import QWidget, QMessageBox
 
+from theatre.config import RESOURCES_DIR
+
 ColorType = typing.Union[str, typing.Tuple[int, int, int]]
 DEFAULT_ICON_PIXMAP_RESOLUTION = 100
 
@@ -69,7 +71,7 @@ def colorized_pixmap(
 
 
 def get_icon(name: str, color: str = None) -> QIcon:
-    path = Path(__file__).parent / "icons" / name
+    path = RESOURCES_DIR / "icons" / name
     filename = path.with_suffix(".svg")
     if not filename.exists():
         raise ValueError(name)
