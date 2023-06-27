@@ -1,0 +1,179 @@
+{
+    "nodes": [
+        {
+            "id": 140079519169232,
+            "title": "State",
+            "pos_x": 291.0,
+            "pos_y": -136.0,
+            "inputs": [
+                {
+                    "id": 140079519169744,
+                    "index": 0,
+                    "multi_edges": false,
+                    "position": 2,
+                    "socket_type": 2
+                }
+            ],
+            "outputs": [
+                {
+                    "id": 140079519169168,
+                    "index": 0,
+                    "multi_edges": true,
+                    "position": 5,
+                    "socket_type": 1
+                }
+            ],
+            "content": {
+                "value": "{relation_name} relation created"
+            },
+            "name": "State",
+            "value": "{relation_name} relation created"
+        },
+        {
+            "id": 140079519114960,
+            "title": "State",
+            "pos_x": 41.0,
+            "pos_y": -144.0,
+            "inputs": [
+                {
+                    "id": 140079519114064,
+                    "index": 0,
+                    "multi_edges": false,
+                    "position": 2,
+                    "socket_type": 2
+                }
+            ],
+            "outputs": [
+                {
+                    "id": 140079519114768,
+                    "index": 0,
+                    "multi_edges": true,
+                    "position": 5,
+                    "socket_type": 1
+                }
+            ],
+            "content": {
+                "value": "{relation_name} relation joined"
+            },
+            "name": "State",
+            "value": "{relation_name} relation joined"
+        },
+        {
+            "id": 139955647018448,
+            "title": "State",
+            "pos_x": -503.0,
+            "pos_y": -157.0,
+            "inputs": [
+                {
+                    "id": 139955750893200,
+                    "index": 0,
+                    "multi_edges": false,
+                    "position": 2,
+                    "socket_type": 2
+                }
+            ],
+            "outputs": [
+                {
+                    "id": 139955486607312,
+                    "index": 0,
+                    "multi_edges": true,
+                    "position": 5,
+                    "socket_type": 1
+                }
+            ],
+            "content": {
+                "value": "root"
+            },
+            "name": "State",
+            "value": "root"
+        },
+        {
+            "id": 140079523152784,
+            "title": "State",
+            "pos_x": -246.0,
+            "pos_y": -150.0,
+            "inputs": [
+                {
+                    "id": 140079523387152,
+                    "index": 0,
+                    "multi_edges": false,
+                    "position": 2,
+                    "socket_type": 2
+                }
+            ],
+            "outputs": [
+                {
+                    "id": 140079523155216,
+                    "index": 0,
+                    "multi_edges": true,
+                    "position": 5,
+                    "socket_type": 1
+                }
+            ],
+            "content": {
+                "value": "{relation_name} relation changed"
+            },
+            "name": "State",
+            "value": "{relation_name} relation changed"
+        }
+    ],
+    "edges": [
+        {
+            "id": 140079519165968,
+            "edge_type": 2,
+            "start": 140079519114768,
+            "end": 140079519169744,
+            "event_spec": {
+                "event": {
+                    "name": "{relation_name}_relation_created",
+                    "args": [],
+                    "kwargs": {},
+                    "relation": null,
+                    "relation_remote_unit_id": null,
+                    "secret": null,
+                    "container": null,
+                    "action": null
+                },
+                "env": ""
+            }
+        },
+        {
+            "id": 140079518984080,
+            "edge_type": 2,
+            "start": 139955486607312,
+            "end": 140079523387152,
+            "event_spec": {
+                "event": {
+                    "name": "{relation_name}_relation_joined",
+                    "args": [],
+                    "kwargs": {},
+                    "relation": null,
+                    "relation_remote_unit_id": null,
+                    "secret": null,
+                    "container": null,
+                    "action": null
+                },
+                "env": ""
+            }
+        },
+        {
+            "id": 140079519118224,
+            "edge_type": 2,
+            "start": 140079523155216,
+            "end": 140079519114064,
+            "event_spec": {
+                "event": {
+                    "name": "{relation_name}_relation_changed",
+                    "args": [],
+                    "kwargs": {},
+                    "relation": null,
+                    "relation_remote_unit_id": null,
+                    "secret": null,
+                    "container": null,
+                    "action": null
+                },
+                "env": ""
+            }
+        }
+    ]
+}

@@ -1,7 +1,6 @@
 # Copyright 2022 Canonical Ltd.
 # See LICENSE file for licensing details.
 import typing
-from pathlib import Path
 
 from qtpy.QtCore import QObject
 from qtpy.QtCore import Qt
@@ -51,13 +50,13 @@ class Color(QWidget):
 
 
 def show_error_dialog(
-    parent, message: str, title="Whoopsiedaisies!", choices=QMessageBox.Ok
+        parent, message: str, title="Whoopsiedaisies!", choices=QMessageBox.Ok
 ):
     return QMessageBox.critical(parent, title, message, choices)
 
 
 def colorized_pixmap(
-    svg_filename: str, color: QColor, res: int = DEFAULT_ICON_PIXMAP_RESOLUTION
+        svg_filename: str, color: QColor, res: int = DEFAULT_ICON_PIXMAP_RESOLUTION
 ) -> QPixmap:
     renderer = QSvgRenderer(svg_filename)
     pixmap = QPixmap(res, res)

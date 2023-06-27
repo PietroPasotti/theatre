@@ -45,7 +45,6 @@ class GraphicsEdge(QDMGraphicsEdge):
 
 class EventEdge(_Edge):
     """Edge representing an Event."""
-
     def __init__(
         self,
         scene: "TheatreScene",
@@ -167,6 +166,8 @@ class EventEdge(_Edge):
     ) -> bool:
         evt_spec = data.get("event_spec", None)
         if evt_spec:
+            # TODO: Relation Events and the like will need a reference to
+            #  the Relation object which is stored in the parent state!
             event = parse_event(evt_spec['event'])
             self.set_event_spec(EventSpec(event, evt_spec['env']))
         return super().deserialize(data, hashmap, restore_id, *args, **kwargs)

@@ -7,8 +7,6 @@ from dataclasses import dataclass, asdict
 from itertools import count
 
 import scenario
-from PyQt5.QtCore import QPointF
-from PyQt5.QtGui import QBrush, QColor
 from nodeeditor.node_content_widget import QDMNodeContentWidget
 from nodeeditor.node_graphics_node import QDMGraphicsNode
 from nodeeditor.node_node import Node
@@ -28,8 +26,8 @@ from qtpy.QtWidgets import QLineEdit
 from qtpy.QtWidgets import QVBoxLayout, QWidget
 from scenario.state import JujuLogLine, State
 
+from theatre.helpers import get_icon
 from theatre.logger import logger
-from theatre.helpers import get_icon, get_color
 from theatre.scenario_json import parse_state
 from theatre.trace_tree_widget import new_state_dialog
 from theatre.trace_tree_widget.event_edge import EventEdge
@@ -73,7 +71,7 @@ class StateGraphicsNode(QDMGraphicsNode):
         else:
             icon = self.icon_ok
 
-        rect = QRectF(160-24, 0, 24.0, 24.0)
+        rect = QRectF(160 - 24, 0, 24.0, 24.0)
         pxmp = icon.pixmap(34, 34)
         painter.drawImage(rect, pxmp.toImage())
 
@@ -217,7 +215,7 @@ class StateNode(Node):
     @property
     def is_root(self) -> bool:
         """Is this a root node?"""
-        return not self.inputs[0].edges
+        return not self.inputs or not self.inputs[0].edges
 
     @property
     def edge_in(self) -> typing.Optional[EventEdge]:
@@ -430,12 +428,22 @@ def create_new_node(
     return new_state_node
 
 
-def autolayout(node: StateNode):
+def autolayout(node: StateNode,
+               align: typing.Literal['top', 'bottom', 'center'] = 'top'):
     pos = node.pos
     children: typing.Iterable[StateNode] = node.getOutputs()
     xpos = pos.x() + node.grNode.width * 1.5
     ypos = pos.y()
+    vspacing = node.grNode.height * 1.5
+
+    if align == 'top':
+        baseline = ypos
+    elif align == "center":
+        baseline = ypos - vspacing * len(children) / 2
+    else:
+        baseline = ypos - vspacing * len(children)
+
     for i, child in enumerate(children):
-        child.setPos(xpos, ypos + node.grNode.height * 1.5 * i)
+        child.setPos(xpos, baseline + vspacing * i)
         child.updateConnectedEdges()
         autolayout(child)

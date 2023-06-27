@@ -3,7 +3,7 @@
 import typing
 from functools import partial
 
-from PyQt5.QtGui import QDragMoveEvent, QWheelEvent
+from qtpy.QtGui import QDragMoveEvent, QWheelEvent
 from nodeeditor.node_edge import EDGE_TYPE_DEFAULT
 from nodeeditor.node_edge_dragging import EdgeDragging as _EdgeDragging
 from nodeeditor.node_editor_widget import NodeEditorWidget as _NodeEditorWidget
@@ -23,11 +23,12 @@ from qtpy.QtWidgets import QVBoxLayout
 from theatre.helpers import get_icon
 from theatre.logger import logger
 from theatre.theatre_scene import TheatreScene, SerializedScene
-from theatre.trace_tree_widget.event_dialog import EventPicker, EventSpec
+from theatre.trace_tree_widget.event_dialog import EventPicker, EventSpec, LIFECYCLE_EVENTS
 from theatre.trace_tree_widget.event_edge import EventEdge
 from theatre.trace_tree_widget.library_widget import (
     STATE_SPEC_MIMETYPE,
     get_sorted_entries, get_spec, load_subtree_from_file, StateSpec, SubtreeSpec, SUBTREE_SPEC_MIMETYPE,
+    DYNAMIC_SUBTREE_SPEC_MIMETYPE, DynamicSubtreeSpec,
 )
 from theatre.trace_tree_widget.new_state_dialog import NewStateDialog, StateIntent
 from theatre.trace_tree_widget.state_node import (
@@ -36,6 +37,8 @@ from theatre.trace_tree_widget.state_node import (
     StateContent,
     create_new_node, autolayout,
 )
+
+from scenario.state import Event
 
 if typing.TYPE_CHECKING:
     from scenario.state import _CharmSpec
@@ -84,7 +87,8 @@ class GraphicsView(QDMGraphicsView):
         if mime_data.hasFormat(STATE_SPEC_MIMETYPE):
             is_hovering_bg = scene.getItemAt(event.pos()) is None
             event.setAccepted(is_hovering_bg)
-        elif mime_data.hasFormat(SUBTREE_SPEC_MIMETYPE):
+        elif mime_data.hasFormat(SUBTREE_SPEC_MIMETYPE) or \
+                mime_data.hasFormat(DYNAMIC_SUBTREE_SPEC_MIMETYPE):
             is_hovering_node = scene.get_node_at(event.pos())
             event.setAccepted(bool(is_hovering_node))
         else:
@@ -271,7 +275,9 @@ class NodeEditorWidget(_NodeEditorWidget):
             callback(self, event)
 
     def on_drag_enter(self, event):
-        if event.mimeData().hasFormat(STATE_SPEC_MIMETYPE) or event.mimeData().hasFormat(SUBTREE_SPEC_MIMETYPE):
+        if event.mimeData().hasFormat(STATE_SPEC_MIMETYPE) or \
+                event.mimeData().hasFormat(SUBTREE_SPEC_MIMETYPE) or \
+                event.mimeData().hasFormat(DYNAMIC_SUBTREE_SPEC_MIMETYPE):
             event.acceptProposedAction()
         else:
             logger.info(f"denied drag enter evt on {self}")
@@ -281,35 +287,29 @@ class NodeEditorWidget(_NodeEditorWidget):
         # if hovering on background: accept STATE SPEC drops
         # if hovering on state: accept SUBTREE SPEC drops
         mime_data = event.mimeData()
-        is_state_spec_drop = mime_data.hasFormat(STATE_SPEC_MIMETYPE)
-        is_subtree_spec_drop = mime_data.hasFormat(SUBTREE_SPEC_MIMETYPE)
-        mimetype = STATE_SPEC_MIMETYPE if is_state_spec_drop else SUBTREE_SPEC_MIMETYPE
 
-        if is_state_spec_drop or is_subtree_spec_drop:
-            event_data = mime_data.data(mimetype)
-            data_stream = QDataStream(event_data, QIODevice.ReadOnly)
-            pixmap = QPixmap()
-            data_stream >> pixmap
-            name = data_stream.readQString()
-            spec = get_spec(name)
-
-            if is_state_spec_drop:
-                # sanity check:
-                assert isinstance(spec, StateSpec)
-                self._drop_node(spec, event)
-            else:  # is_subtree_spec_drop
-                assert isinstance(spec, SubtreeSpec)
-                self._drop_subtree(spec, event.pos())
+        for mimetype, method in (
+            (STATE_SPEC_MIMETYPE, self._drop_node),
+            (SUBTREE_SPEC_MIMETYPE, self._drop_subtree),
+            (DYNAMIC_SUBTREE_SPEC_MIMETYPE, self._drop_dynamic_subtree),
+        ):
+            if mime_data.hasFormat(mimetype):
+                event_data = mime_data.data(mimetype)
+                data_stream = QDataStream(event_data, QIODevice.ReadOnly)
+                name = data_stream.readQString()
+                spec = get_spec(name)
+                method(spec, event.pos())
+                break
 
             event.setDropAction(Qt.MoveAction)
             event.accept()
         else:
             event.ignore()
 
-    def _drop_node(self, spec: StateSpec, event: QEvent):
+    def _drop_node(self, spec: StateSpec, pos: QPoint):
         node = create_new_node(
             scene=self.scene, view=self.view,
-            pos=event.pos(),
+            pos=pos,
             name=spec.name,
             icon=spec.icon
         )
@@ -322,6 +322,12 @@ class NodeEditorWidget(_NodeEditorWidget):
         start = self.scene.get_node_at(pos)
         self._paste_subtree(start, spec.graph)
         self.scene.history.storeHistory(f"Added subtree {spec.name}")
+
+    def _drop_dynamic_subtree(self, spec: DynamicSubtreeSpec, pos: QPoint):
+        start = self.scene.get_node_at(pos)
+        graph = spec.generate_graph(self._charm_spec)
+        self._paste_subtree(start, graph)
+        self.scene.history.storeHistory(f"Added dynamic subtree {spec.name}")
 
     def contextMenuEvent(self, event):
         try:
@@ -375,9 +381,14 @@ class NodeEditorWidget(_NodeEditorWidget):
         subtree: SubtreeSpec
         for subtree in get_sorted_entries(SubtreeSpec):
             branch_action = branch_submenu.addAction(
-                subtree.icon, subtree.name, partial(self._paste_subtree, selected, subtree.graph)
+                subtree.icon, subtree.name,
+                partial(self._paste_subtree, selected, subtree.graph)
             )
             branch_actions.append(branch_action)
+
+        branch_submenu.addAction(
+            get_icon('hub'), "Fan out", lambda: self._fan_out(selected)
+        )
 
         # markDirtyDescendantsAct = context_menu.addAction("Mark Descendant Dirty")
         # markInvalidAct = context_menu.addAction("Mark Invalid")
@@ -403,6 +414,22 @@ class NodeEditorWidget(_NodeEditorWidget):
         else:
             logger.info(f'chosen action: {action}')
             # other actions should handle themselves
+
+    def _fan_out(self, start: StateNode):
+        """Experimental action to branch out in all possible directions from a start."""
+
+        for event in LIFECYCLE_EVENTS:
+            # todo avoid generating inconsistent paths.
+            new_node = self._new_node()
+
+            EventEdge(
+                self.scene,
+                start.output_socket,
+                new_node.input_socket,
+                event_spec=EventSpec(Event(event), {})
+            )
+
+        autolayout(start, align='center')
 
     def _on_edge_context_menu(self, event, edge: "EventEdge"):
         context_menu = QMenu(self)

@@ -14,14 +14,18 @@ from scenario import State
 
 from theatre.config import RESOURCES_DIR
 from theatre.helpers import get_icon
+from theatre.logger import logger
 
 if typing.TYPE_CHECKING:
     from theatre.theatre_scene import SerializedScene
     from theatre.trace_tree_widget.new_state_dialog import StateIntent
+    from scenario.state import _CharmSpec
 
 STATE_SPEC_MIMETYPE = "application/x-state"
 SUBTREE_SPEC_MIMETYPE = "application/x-subtree"
+DYNAMIC_SUBTREE_SPEC_MIMETYPE = "application/x-subtree-dynamic"
 SUBTREES_DIR = RESOURCES_DIR / 'subtrees'
+DYNAMIC_SUBTREES_TEMPLATES_DIR = RESOURCES_DIR / 'dynamic_subtree_templates'
 STATES_DIR = RESOURCES_DIR / 'states'
 
 
@@ -38,15 +42,25 @@ class StateSpec:  # todo unify with StateIntent
 
 
 @dataclass
-class SubtreeSpec:
+class LibraryEntry:
+    icon: QIcon = None
+    name: str = "Anonymous Subtree"
+
+
+@dataclass
+class SubtreeSpec(LibraryEntry):
     """Library entry defining a sequence of events.
 
     Allows adding predefined subtrees.
     """
 
-    graph: "SerializedScene"
-    icon: QIcon = None
-    name: str = "Anonymous Subtree"
+    graph: "SerializedScene" = None
+
+
+@dataclass
+class DynamicSubtreeSpec(LibraryEntry):
+    """Library entry defining a dynamically generated sequence of events."""
+    generate_graph: typing.Callable[["_CharmSpec", ], "SerializedScene"] = None
 
 
 def load_subtree_from_file(filename: Path) -> "SerializedScene":
@@ -56,31 +70,68 @@ def load_subtree_from_file(filename: Path) -> "SerializedScene":
     return obj
 
 
+def choose_relation(charm_spec: "_CharmSpec") -> str:
+    return "foo"
+
+
+def _get_relation_subtree(charm_spec: "_CharmSpec", ) -> "SerializedScene":
+    """Generate a subtree for a standard relation lifecycle."""
+    relation_name = choose_relation(charm_spec)
+    filename = DYNAMIC_SUBTREES_TEMPLATES_DIR / 'relation_lifecycle.theatre'
+    text = filename.read_text().replace("{relation_name}", relation_name)
+    obj = json.loads(text)
+    return obj
+
+
 # Library database
-CATALOGUE: [StateSpec | SubtreeSpec] = [
-    StateSpec(State(), get_icon("data_object"), "Null State"),
-    StateSpec(State(leader=True), get_icon("data_object"), "Leader State"),
-]
+CATALOGUE: [LibraryEntry] = []
+
+
+def _load_all_builtin_dynamic_subtrees():
+    standard_icon = get_icon("magic_split")
+    CATALOGUE.extend([
+        DynamicSubtreeSpec(standard_icon, "Relation lifecycle", _get_relation_subtree)
+    ])
+
+
+def _load_all_builtin_specs():
+    standard_icon = get_icon("data_object")
+    CATALOGUE.extend([
+        StateSpec(State(), standard_icon, "Null State"),
+        StateSpec(State(leader=True), standard_icon, "Leader State"),
+    ])
 
 
 def _load_all_builtin_subtrees():
+    standard_icon = get_icon("arrow_split")
     for filename in SUBTREES_DIR.glob('*.theatre'):
         CATALOGUE.append(
             SubtreeSpec(
                 graph=load_subtree_from_file(filename),
-                icon=get_icon("arrow_split"),
+                icon=standard_icon,
                 name=filename.name.split('.')[0].replace('_', ' ').title()
             )
         )
 
 
-def get_sorted_entries(type_: type | typing.Tuple[type, ...] = None) -> [StateSpec | SubtreeSpec]:
+def get_sorted_entries(type_: type | typing.Tuple[type, ...] = None) -> [LibraryEntry]:
     entries = filter(lambda x: isinstance(x, type_), CATALOGUE) if type_ else CATALOGUE
     return sorted(entries, key=lambda spec: spec.name)
 
 
-def get_spec(name: str) -> StateSpec | SubtreeSpec:
+def get_spec(name: str) -> LibraryEntry:
     return next(filter(lambda spec: spec.name == name, CATALOGUE))
+
+
+def get_mimetype(library_entry: LibraryEntry) -> str:
+    if isinstance(library_entry, StateSpec):
+        return STATE_SPEC_MIMETYPE
+    elif isinstance(library_entry, SubtreeSpec):
+        return SUBTREE_SPEC_MIMETYPE
+    elif isinstance(library_entry, DynamicSubtreeSpec):
+        return DYNAMIC_SUBTREE_SPEC_MIMETYPE
+    else:
+        raise TypeError(library_entry)
 
 
 class Library(QListWidget):
@@ -88,6 +139,8 @@ class Library(QListWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)
+        _load_all_builtin_specs()
+        _load_all_builtin_dynamic_subtrees()
         _load_all_builtin_subtrees()
         self.initUI()
 
@@ -127,18 +180,17 @@ class Library(QListWidget):
     def startDrag(self, *args, **kwargs):
         try:
             item = self.currentItem()
-            state_spec: StateSpec | SubtreeSpec = item.data(Qt.UserRole)
-            name = state_spec.name
-            icon = state_spec.icon
+            library_entry: LibraryEntry = item.data(Qt.UserRole)
+            name = library_entry.name
+            icon = library_entry.icon
             pixmap = icon.pixmap(self._icon_size, self._icon_size)
 
             item_data = QByteArray()
             data_stream = QDataStream(item_data, QIODevice.WriteOnly)
-            data_stream << pixmap
             data_stream.writeQString(name)
 
             mime_data = QMimeData()
-            mimetype = STATE_SPEC_MIMETYPE if isinstance(state_spec, StateSpec) else SUBTREE_SPEC_MIMETYPE
+            mimetype = get_mimetype(library_entry)
             mime_data.setData(mimetype, item_data)
 
             drag = QDrag(self)
@@ -149,4 +201,4 @@ class Library(QListWidget):
             drag.exec_(Qt.MoveAction)
 
         except Exception as e:
-            dumpException(e)
+            logger.error(e, exc_info=True)
