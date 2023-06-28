@@ -7,6 +7,10 @@ from dataclasses import dataclass, asdict
 from itertools import count
 
 import scenario
+from PyQt5 import QtCore
+from PyQt5.QtCore import QSize
+from PyQt5.QtGui import QPainter
+from PyQt5.QtWidgets import QPushButton, QListView, QListWidgetItem, QListWidget
 from nodeeditor.node_content_widget import QDMNodeContentWidget
 from nodeeditor.node_graphics_node import QDMGraphicsNode
 from nodeeditor.node_node import Node
@@ -26,7 +30,7 @@ from qtpy.QtWidgets import QLineEdit
 from qtpy.QtWidgets import QVBoxLayout, QWidget
 from scenario.state import JujuLogLine, State
 
-from theatre.helpers import get_icon
+from theatre.helpers import get_icon, get_color
 from theatre.logger import logger
 from theatre.scenario_json import parse_state
 from theatre.trace_tree_widget import new_state_dialog
@@ -57,21 +61,30 @@ class StateGraphicsNode(QDMGraphicsNode):
 
     def initAssets(self):
         super().initAssets()
-        self.icon_ok = get_icon("stars")
-        self.icon_dirty = get_icon("flaky")
-        self.icon_invalid = get_icon("error")
+        # FIXME: colors don't quite work as intended here, somehow...?
+        self._icon_ok = get_icon("stars")
+        self._icon_dirty = get_icon("flaky")
+        self._icon_invalid = get_icon("error")
+        self._color_ok = get_color("pastel green")
+        self._color_dirty = get_color("pastel orange")
+        self._color_invalid = get_color("pastel red")
 
-    def paint(self, painter, QStyleOptionGraphicsItem, widget=None):
+    def paint(self, painter: QPainter, QStyleOptionGraphicsItem, widget=None):
         super().paint(painter, QStyleOptionGraphicsItem, widget)
 
         if self.node.isInvalid():
-            icon = self.icon_invalid
+            icon = self._icon_invalid
+            color = self._color_invalid
         elif self.node.isDirty():
-            icon = self.icon_dirty
+            icon = self._icon_dirty
+            color = self._color_dirty
         else:
-            icon = self.icon_ok
+            icon = self._icon_ok
+            color = self._color_ok
 
         rect = QRectF(160 - 24, 0, 24.0, 24.0)
+        painter.setPen(color)
+        painter.drawEllipse(rect)
         pxmp = icon.pixmap(34, 34)
         painter.drawImage(rect, pxmp.toImage())
 
@@ -79,10 +92,38 @@ class StateGraphicsNode(QDMGraphicsNode):
 NEWSTATECTR = count()
 
 
+class DeltaList(QWidget):
+    delta_added = Signal()
+    delta_removed = Signal()
+
+    def __init__(self, node: "StateNode", parent=None) -> None:
+        super().__init__(parent)
+        self._node = node
+        self._delta_list = delta_list = QListWidget(self)
+        self._add_delta_button = delta_butt = QPushButton(get_icon("difference"), "add delta", self)
+
+        delta_butt.clicked.connect(self._add_delta)
+
+        self._layout = layout = QVBoxLayout()
+        layout.setContentsMargins(10, 10, 10, 10)
+        layout.addWidget(delta_list)
+        layout.addWidget(delta_butt)
+
+    def _add_delta(self):
+        # todo: add row including 'remove' and 'edit' buttons
+        name = "modified"
+        item = QListWidgetItem(name, self._delta_list)  # can be (icon, text, parent, <int>type)
+        item.setIcon(get_icon("difference"))
+        item.setSizeHint(QSize(32, 32))
+
+        item.setFlags(Qt.ItemIsEnabled)
+        item.setData(Qt.UserRole, Delta(lambda x: x, "identity"))
+
+
 class StateContent(QDMNodeContentWidget):
     clicked = Signal()
 
-    def __init__(self, node: "Node", parent: QWidget = None, title: str = ""):
+    def __init__(self, node: "StateNode", parent: QWidget = None, title: str = ""):
         self._title = title
         super().__init__(node, parent)
 
@@ -136,6 +177,16 @@ class StateNodeOutput:
     traceback: typing.Optional[inspect.Traceback] = None
 
 
+class ParentEvaluationFailed(RuntimeError):
+    """Raised by StateNode._evaluate if the parent node's evaluation fails."""
+
+
+@dataclass
+class Delta:
+    get: typing.Callable[[State], State]
+    name: str
+
+
 class StateNode(Node):
     content_label = ""
     content_label_objname = "state_node_bg"
@@ -161,6 +212,7 @@ class StateNode(Node):
 
         self.icon: QIcon = icon or self._get_icon()
         self.value: typing.Optional[StateNodeOutput] = None
+        self._deltas = []
         self.scene = typing.cast("TheatreScene", self.scene)
         self._is_dirty = True
         self._is_custom = False
@@ -199,13 +251,26 @@ class StateNode(Node):
         return get_icon("data_object")
 
     def initInnerClasses(self):
+        # todo: render delta list as tail of nodes beneath this one.
+        self.delta_list = DeltaList(self)
         self.content = StateContent(self, title=self.title)
         self.content.clicked.connect(self._on_content_clicked)
+        self.delta_list.delta_added.connect(self._on_add_delta)
+        self.delta_list.delta_removed.connect(self._on_remove_delta)
         self.grNode = StateGraphicsNode(self)
+        self.grNode.setToolTip("Click to evaluate.")
         self.content.edit.textChanged.connect(self.on_description_changed)
 
     def _on_content_clicked(self):
         self.scene.state_node_clicked.emit(self)
+
+    def _on_add_delta(self, delta: Delta):
+        self._deltas.append(delta)
+        # todo add socket
+
+    def _on_remove_delta(self, index: int = 0):
+        self._deltas.pop(index)
+        # todo remove socket
 
     def initSettings(self):
         super().initSettings()
@@ -262,6 +327,10 @@ class StateNode(Node):
         if not isinstance(state_in, StateNodeOutput):
             raise RuntimeError(
                 f"parent {parent} evaluation yielded something bad: {state_in}"
+            )
+        if not state_in.state:
+            raise ParentEvaluationFailed(
+                "Cannot evaluate this node. Fix the parents first."
             )
 
         scenario_stdout_buffer = ""

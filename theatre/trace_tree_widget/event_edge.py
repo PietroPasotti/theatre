@@ -28,11 +28,18 @@ if typing.TYPE_CHECKING:
 
 
 class GraphicsEdge(QDMGraphicsEdge):
+    edge: "EventEdge"
+
     def __init__(self, edge: 'EventEdge', parent: QWidget = None):
         super().__init__(edge, parent)
+        self._label_color = get_color('cyan1')
 
     def paint(self, painter: QPainter, QStyleOptionGraphicsItem, widget=None):
         super().paint(painter, QStyleOptionGraphicsItem, widget)
+        try:
+            spec = self.edge.event_spec
+        except RuntimeError:
+            return
 
         # sx, sy = self.posSource
         # dx, dy = self.posDestination
@@ -40,18 +47,30 @@ class GraphicsEdge(QDMGraphicsEdge):
 
         path: QPainterPath = self.path()
         midpoint = path.pointAtPercent(.5)
-        painter.drawPixmap(midpoint, self.edge.icon.pixmap(32, 32))
+
+        # align to center
+        midpoint.setX(midpoint.x() - 16)
+        midpoint.setY(midpoint.y() - 16)
+        painter.setPen(self._label_color)
+        painter.drawText(midpoint, spec.event.name)
+
+        # painter.drawPixmap(midpoint, self.edge.icon.pixmap(32, 32))
+
+
+class SpecUnsetError(RuntimeError):
+    pass
 
 
 class EventEdge(_Edge):
     """Edge representing an Event."""
+
     def __init__(
-        self,
-        scene: "TheatreScene",
-        start_socket: "Socket" = None,
-        end_socket: "Socket" = None,
-        edge_type=EDGE_TYPE_DIRECT,
-        event_spec: typing.Optional[EventSpec] = None,
+            self,
+            scene: "TheatreScene",
+            start_socket: "Socket" = None,
+            end_socket: "Socket" = None,
+            edge_type=EDGE_TYPE_DIRECT,
+            event_spec: typing.Optional[EventSpec] = None,
     ):
         super().__init__(scene, start_socket, end_socket, edge_type)
         self._event_spec: typing.Optional[EventSpec] = None
@@ -122,11 +141,13 @@ class EventEdge(_Edge):
     @property
     def event_spec(self) -> EventSpec:
         if not self._event_spec:
-            raise RuntimeError(f"event spec unset on {self}")
+            raise SpecUnsetError(self)
         return self._event_spec
 
     def _get_color(self):
         event = self._event_spec.event
+        if event.name == 'update-status':
+            return get_color("update-status")
         if event._is_relation_event:
             return get_color("relation event")
         elif event._is_secret_event:
@@ -162,7 +183,7 @@ class EventEdge(_Edge):
         return out
 
     def deserialize(
-        self, data: dict, hashmap: dict = {}, restore_id: bool = True, *args, **kwargs
+            self, data: dict, hashmap: dict = {}, restore_id: bool = True, *args, **kwargs
     ) -> bool:
         evt_spec = data.get("event_spec", None)
         if evt_spec:

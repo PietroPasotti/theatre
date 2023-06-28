@@ -88,7 +88,7 @@ CATALOGUE: [LibraryEntry] = []
 
 
 def _load_all_builtin_dynamic_subtrees():
-    standard_icon = get_icon("magic_split")
+    standard_icon = get_icon("arrow_split_magic")
     CATALOGUE.extend([
         DynamicSubtreeSpec(standard_icon, "Relation lifecycle", _get_relation_subtree)
     ])

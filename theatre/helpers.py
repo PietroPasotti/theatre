@@ -2,20 +2,24 @@
 # See LICENSE file for licensing details.
 import typing
 
+from PyQt5.QtGui import QImage
 from qtpy.QtCore import QObject
-from qtpy.QtCore import Qt
 from qtpy.QtGui import QPainter, QPixmap
 from qtpy.QtGui import QPalette, QColor, QIcon
 from qtpy.QtSvg import QSvgRenderer
 from qtpy.QtWidgets import QWidget, QMessageBox
 
 from theatre.config import RESOURCES_DIR
+from theatre.resources.x11_colors import X11_COLORS
 
 ColorType = typing.Union[str, typing.Tuple[int, int, int]]
 DEFAULT_ICON_PIXMAP_RESOLUTION = 100
-
 CUSTOM_COLORS = {
+    # state node icon
+    "pastel green": (138, 255, 153),
+    "pastel orange": (255, 185, 64),
     "pastel red": (245, 96, 86),
+
     # event edge colors
     "relation event": "#D474AF",
     "secret event": "#A9FAC8",
@@ -24,19 +28,20 @@ CUSTOM_COLORS = {
     "builtin event": "#96A1F6",
     "leader event": "#C6D474",
     "generic event": "#D6CA51",
+    "update-status": "#4a708b",  # x11's skyblue4
 }
 
 
 def get_color(color: ColorType):
-    if isinstance(color, tuple):
-        mapped_color = color
-    else:
-        mapped_color = CUSTOM_COLORS.get(color, color)
-    return (
-        QColor(*mapped_color)
-        if isinstance(mapped_color, tuple)
-        else QColor(mapped_color)
-    )
+    if isinstance(color, QColor):
+        return color
+    elif isinstance(color, tuple):
+        return QColor(*color)
+    elif isinstance(color, str):
+        for db in (CUSTOM_COLORS, X11_COLORS):
+            if mapped_color := db.get(color, None):
+                return QColor(mapped_color) if isinstance(mapped_color, str) else QColor(*mapped_color)
+    raise RuntimeError(f'invalid input: unable to map {color} to QColor.')
 
 
 class Color(QWidget):
@@ -55,32 +60,35 @@ def show_error_dialog(
     return QMessageBox.critical(parent, title, message, choices)
 
 
-def colorized_pixmap(
-        svg_filename: str, color: QColor, res: int = DEFAULT_ICON_PIXMAP_RESOLUTION
-) -> QPixmap:
-    renderer = QSvgRenderer(svg_filename)
-    pixmap = QPixmap(res, res)
-    pixmap.fill(Qt.GlobalColor.transparent)
-    painter = QPainter(pixmap)
-    renderer.render(painter)  # this is the destination, and only its alpha is used!
-    painter.setCompositionMode(painter.CompositionMode.CompositionMode_SourceIn)
-    painter.fillRect(pixmap.rect(), color)
+def colorized(name: str, color: QColor, res: int = 500):
+    path = RESOURCES_DIR / "icons" / name
+    filename = path.with_suffix(".svg")
+    renderer = QSvgRenderer(str(filename.absolute()))
+    orig_svg = QImage(res, res, QImage.Format_ARGB32)
+    painter = QPainter(orig_svg)
+
+    renderer.render(painter)
+    img_copy = orig_svg.copy()
     painter.end()
-    return pixmap
+
+    painter.begin(img_copy)
+    painter.setCompositionMode(QPainter.CompositionMode_SourceIn)
+    painter.fillRect(img_copy.rect(), color)
+    painter.end()
+    pxmp = QPixmap.fromImage(img_copy)
+    return QIcon(pxmp)
 
 
-def get_icon(name: str, color: str = None) -> QIcon:
+def get_icon(name: str, color: ColorType | None = None) -> QIcon:
+    if color:
+        return colorized(name, get_color(color))
+
     path = RESOURCES_DIR / "icons" / name
     filename = path.with_suffix(".svg")
     if not filename.exists():
         raise ValueError(name)
 
     abspath_str = str(filename.absolute())
-
-    if color:
-        pixmap = colorized_pixmap(svg_filename=abspath_str, color=get_color(color))
-        return QIcon(pixmap)
-
     return QIcon(abspath_str)
 
 
