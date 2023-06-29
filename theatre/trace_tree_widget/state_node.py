@@ -208,6 +208,7 @@ class StateNode(Node):
             outputs=[1],
             icon: QIcon = None,
     ):
+        self._is_null = False
         super().__init__(scene, name, inputs, outputs)
 
         self.icon: QIcon = icon or self._get_icon()
@@ -302,6 +303,8 @@ class StateNode(Node):
         title = []
         if self._is_custom:
             title.append("Custom")
+        if self._is_null:
+            title.append("Null")
         title.append("State")
         if self.is_root:
             title.append("(root)")
@@ -313,9 +316,11 @@ class StateNode(Node):
     def _evaluate(self) -> StateNodeOutput:
         """Compute the state in this node, based on previous node=state and edge=event"""
         logger.info(f'{"re" if self.value else ""}evaluating {self}')
+        self._is_null = False
 
         if self.is_root:
             logger.info(f"no edge in: {self} inited as null state (root)")
+            self._is_null = True
             return StateNodeOutput(scenario.State(), [], "")
 
         edge_in = self.edge_in
@@ -405,6 +410,7 @@ class StateNode(Node):
         return value
 
     def _update_graphics(self):
+        self._update_title()
         self.grNode.update()
         if self.input_socket and self.input_socket.edges:
             self.input_socket.edges[0]._update_icon()

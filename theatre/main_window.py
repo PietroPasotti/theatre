@@ -6,7 +6,6 @@ import typing
 from importlib.metadata import version
 from pathlib import Path
 
-import ops
 from nodeeditor.node_editor_window import NodeEditorWindow
 from nodeeditor.utils import dumpException
 from nodeeditor.utils import loadStylesheets
@@ -22,8 +21,11 @@ from qtpy.QtWidgets import (
     QMessageBox,
     QFileDialog,
 )
+from scenario import Context
 
 from theatre import config, __version__
+from theatre.config import SCENE_FILE_TYPE
+from theatre.context_loader import load_charm_context, CharmCtxLoaderDialog
 from theatre.helpers import get_icon, toggle_visible, show_error_dialog
 from theatre.logger import logger
 from theatre.trace_inspector import TraceInspectorWidget
@@ -32,46 +34,29 @@ from theatre.trace_tree_widget.node_editor_widget import NodeEditorWidget
 
 if typing.TYPE_CHECKING:
     from nodeeditor.node_editor_widget import NodeEditorWidget
+    from scenario.state import _CharmSpec
 
 
 # os.environ["QT_QPA_PLATFORM"] = "offscreen"
 
 # TODO: disable edgeIntersect functionality
 
-
 class TheatreMainWindow(NodeEditorWindow):
     SHOW_MAXIMIZED = False
     RESTORE_ON_OPEN = True
-    SCENE_EXTENSION = ".scene"
-    FILE_DIALOG_TYPE = f"Scene (*{SCENE_EXTENSION});;All files (*)"
 
     def __init__(self):
-
-        from scenario.state import _CharmSpec
-        # todo figure out import from file/project
-        class DummyCharm(ops.CharmBase):
-            def __init__(self, framework: ops.Framework):
-                super().__init__(framework)
-                for event in self.on.events().values():
-                    framework.observe(event, self._on_event)
-
-            def _on_event(self, _):
-                opts = [
-                    ops.ActiveStatus(""),
-                    ops.BlockedStatus("whoops"),
-                    ops.WaitingStatus("..."),
-                ]
-                import random
-
-                self.unit.status = random.choice(opts)
-
-        self._charm_spec: _CharmSpec = _CharmSpec(
-            charm_type=DummyCharm,
-            meta={'name': 'dummy charm',
-                  'requires': {'foo': {'interface': 'bar'}}}
-        )
-
+        from scenario import Context
+        self._charm_ctx: Context | None = None
+        self._charm_spec: _CharmSpec | None = None
         super().__init__()
+
+    @property
+    def charm_spec(self) -> typing.Union["_CharmSpec", None]:
+        if not self._charm_ctx:
+            logger.error("select a context first")
+            return None
+        return self._charm_ctx.charm_spec
 
     def initUI(self):
         self.name_company = "Canonical"
@@ -197,14 +182,14 @@ class TheatreMainWindow(NodeEditorWindow):
             "&About",
             self,
             statusTip="Show the application's About box",
-            triggered=self.about,
+            triggered=self._about,
         )
 
         self.actToggleStatesView = QAction(
             "Show &Trace Lib",
             self,
             statusTip="Toggle the visibility of the trace library.",
-            triggered=self.toggle_states,
+            triggered=self._toggle_states,
             checkable=True,
         )
 
@@ -228,28 +213,54 @@ class TheatreMainWindow(NodeEditorWindow):
             "New State",
             self,
             statusTip="Create a new custom state.",
-            triggered=self.on_new_custom_state,
+            triggered=self._on_new_custom_state,
         )
 
-    def getCurrentNodeEditorWidget(self) -> typing.Optional["NodeEditorWidget"]:
+        self.actLoadCharm = QAction(
+            "Load Charm Context",
+            self,
+            statusTip="Load a charm context.",
+            triggered=self._on_load_charm_context,
+        )
+
+    def getCurrentNodeEditorWidget(self) -> NodeEditorWidget | None:
         active_subwindow = self.mdiArea.activeSubWindow()
         if active_subwindow:
             return typing.cast("NodeEditorWidget", active_subwindow.widget())
         return None
 
     @property
-    def current_node_editor(self) -> typing.Optional[NodeEditorWidget]:
+    def current_node_editor(self) -> NodeEditorWidget | None:
         return self.getCurrentNodeEditorWidget()
 
-    def on_new_custom_state(self):
+    def _on_load_charm_context(self) -> Context | None:
+        """Open a dialog to pick a new context."""
+
+        dialog = CharmCtxLoaderDialog(self)
+        dialog.exec()
+
+        if not dialog.confirmed:
+            logger.info("load charm ctx aborted")
+            return
+
+        ctx = dialog.finalize()
+
+        logger.info(f"set charm context to {ctx}")
+        self._update_charm_context(ctx)
+
+    def _update_charm_context(self, ctx: Context):
+        self._charm_ctx = ctx
+
+    def _on_new_custom_state(self):
         editor = self.current_node_editor
         if not editor:
             show_error_dialog(self, "Open a node editor first.")
             return
         editor.create_new_custom_state()
 
-    def getFileDialogDirectory(self):
-        path = Path(config.APP_DATA_DIR).expanduser().absolute() / 'scenes'
+    @property
+    def _app_data_dir(self) -> Path:
+        path = Path(config.APP_DATA_DIR).expanduser().absolute()
         if not path.exists():
             logger.info(f'app data dir {path} not found; attempting to create')
             try:
@@ -257,9 +268,13 @@ class TheatreMainWindow(NodeEditorWindow):
             except Exception as e:
                 logger.error(e, exc_info=True)
                 logger.warn(f'could not initialize desired theatre data dir {path}; '
-                            f'using "./" instead.')
-                return ""
-        return str(path)
+                            f'using cwd instead.')
+                return Path()
+        return path
+
+    def getFileDialogDirectory(self):
+        """Scene save file directory."""
+        return str(self._app_data_dir / 'scenes')
 
     def onFileSaveAs(self):
         editor: NodeEditorWidget = self.current_node_editor
@@ -271,15 +286,16 @@ class TheatreMainWindow(NodeEditorWindow):
             self,
             "Save graph to file",
             self.getFileDialogDirectory(),
-            self.FILE_DIALOG_TYPE,
-            self.FILE_DIALOG_TYPE,
+            SCENE_FILE_TYPE,
+            SCENE_FILE_TYPE,
         )
-        if not fname.endswith(self.SCENE_EXTENSION):
-            fname += self.SCENE_EXTENSION
-            print(f'automatically adding ".scene": '
-                  f'saving to {Path(fname).absolute()}')
 
-        # print(f"selected: {fname!r}")
+        extension = self.SCENE_EXTENSION
+        if not fname.endswith(extension):
+            fname += extension
+            logger.warn(f'automatically adding "{extension}": '
+                        f'saving to {Path(fname).absolute()}')
+
         if not fname:
             return False
 
@@ -293,7 +309,8 @@ class TheatreMainWindow(NodeEditorWindow):
 
     def get_title(self):
         """Generate window title."""
-        title = f"Theatre[{self._charm_spec.charm_type.__name__}]: Trace Tree Editor"
+        charm_type = "<no charm selected>" if not self._charm_ctx else self._charm_ctx.charm_spec.charm_type.__name__
+        title = f"Theatre[{charm_type}]: Trace Tree Editor"
         current_trace_tree = self.mdiArea.currentSubWindow()
         if current_trace_tree:
             title += f" - {current_trace_tree.widget().getUserFriendlyFilename()}"
@@ -325,7 +342,7 @@ class TheatreMainWindow(NodeEditorWindow):
             self.mdiArea.setActiveSubWindow(existing)
         else:
             # we need to create new subWindow and open the file
-            editor_widget = NodeEditorWidget(self._charm_spec, self.mdiArea)
+            editor_widget = NodeEditorWidget(self, self.mdiArea)
             if editor_widget.fileLoad(fname):
                 self.statusBar().showMessage("File %s loaded" % fname, 5000)
                 self.create_new_trace_tree_tab(editor_widget)
@@ -351,7 +368,7 @@ class TheatreMainWindow(NodeEditorWindow):
         except Exception as e:
             dumpException(e)
 
-    def about(self):
+    def _about(self):
         about_txt = '\n'.join(
             (
                 f"This is Theatre {__version__}.",
@@ -365,6 +382,11 @@ class TheatreMainWindow(NodeEditorWindow):
             f"About",
             about_txt
         )
+
+    def createFileMenu(self):
+        super().createFileMenu()
+        self.fileMenu.addSeparator()
+        self.fileMenu.addAction(self.actLoadCharm)
 
     def createMenus(self):
         super().createMenus()
@@ -457,7 +479,7 @@ class TheatreMainWindow(NodeEditorWindow):
             action.triggered.connect(self.windowMapper.map)
             self.windowMapper.setMapping(action, window)
 
-    def toggle_states(self):
+    def _toggle_states(self):
         # we don't subclass the states dock yet.
         toggle_visible(self._states_dock)
 
@@ -468,13 +490,11 @@ class TheatreMainWindow(NodeEditorWindow):
         self.statusBar().showMessage("Ready")
 
     def create_new_trace_tree_tab(self, widget: NodeEditorWidget = None):
-        trace_tree_editor = widget or NodeEditorWidget(self._charm_spec, self.mdiArea)
+        trace_tree_editor = widget or NodeEditorWidget(self, self.mdiArea)
         subwnd = self.mdiArea.addSubWindow(trace_tree_editor)
         subwnd.setWindowIcon(self.empty_icon)
         self.mdiArea.setActiveSubWindow(subwnd)  # this doesn't always work
 
-        # FIXME: horrible
-        trace_tree_editor.scene.set_charm_spec(self._charm_spec)
         # state reevaluated --> (re)display in trace inspector
         trace_tree_editor.state_node_changed.connect(
             self._trace_inspector.on_node_changed

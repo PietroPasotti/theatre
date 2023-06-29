@@ -25,10 +25,12 @@ from theatre.trace_tree_widget.state_node import (
     GraphicsSocket,
     StateContent,
 )
+
 if typing.TYPE_CHECKING:
-    from scenario.state import _CharmSpec
+    from theatre.main_window import TheatreMainWindow
 
 SerializedScene = dict  # TODO
+
 
 class SceneClipboard(_SceneClipboard):
     def deserializeFromClipboard(self, data: SerializedScene, *args, **kwargs):
@@ -108,18 +110,15 @@ class TheatreScene(QObject, _Scene):
     state_node_changed = Signal(StateNode)
     state_node_clicked = Signal(StateNode)
 
-    def __init__(self):
+    def __init__(self, main_window: "TheatreMainWindow"):
         super().__init__()
         # FIXME: Dynamically set by MainWindow
-        self._charm_spec: "_CharmSpec" | None = None
+        self._main_window: "TheatreMainWindow" = main_window
         self.clipboard = SceneClipboard(self)
-
-    def set_charm_spec(self, spec: "_CharmSpec"):
-        self._charm_spec = spec
 
     @property
     def charm_spec(self):
-        return self._charm_spec
+        return self._main_window.charm_spec
 
     def loadFromFile(self, filename: str):
         with open(filename, "r") as file:
@@ -218,8 +217,8 @@ class TheatreScene(QObject, _Scene):
             raise TypeError(nearest)
 
     def find_nearest_parent_at(self, pos: QPoint,
-                                types: typing.Tuple[type, ...]
-                                ) -> QGraphicsItem | None:
+                               types: typing.Tuple[type, ...]
+                               ) -> QGraphicsItem | None:
         """Climb up the widget hierarchy until we find a parent of one of the desired types."""
         item = self.getItemAt(pos)
 

@@ -42,6 +42,7 @@ from scenario.state import Event
 
 if typing.TYPE_CHECKING:
     from scenario.state import _CharmSpec
+    from theatre.main_window import TheatreMainWindow
 
 DEBUG = False
 DEBUG_CONTEXT = False
@@ -142,12 +143,11 @@ class NodeEditorWidget(_NodeEditorWidget):
     state_node_changed = Signal(StateNode)
     state_node_clicked = Signal(StateNode)
 
-    def __init__(self, charm_spec: "_CharmSpec", parent=None):
+    def __init__(self, main_window: "TheatreMainWindow", parent=None):
+        self._main_window = main_window
         super().__init__(parent)
-
         self.update_title()
         self.chain_on_new_node = True
-        self._charm_spec = charm_spec
 
         self._create_new_state_actions()
 
@@ -160,6 +160,10 @@ class NodeEditorWidget(_NodeEditorWidget):
 
         self._close_event_listeners = []
 
+    @property
+    def _charm_spec(self):
+        return self._main_window._charm_ctx.charm_spec
+
     def initUI(self):
         """Set up this ``NodeEditorWidget`` with its layout.`"""
         self.layout = QVBoxLayout()
@@ -167,7 +171,7 @@ class NodeEditorWidget(_NodeEditorWidget):
         self.setLayout(self.layout)
 
         # crate graphics scene
-        self.scene = scene = TheatreScene()
+        self.scene = scene = TheatreScene(self._main_window)
         scene.state_node_changed.connect(self.state_node_changed)
         scene.state_node_clicked.connect(self.state_node_clicked)
 

@@ -1,6 +1,10 @@
 # Copyright 2022 Canonical Ltd.
 # See LICENSE file for licensing details.
+import importlib
+import sys
+import types
 import typing
+from pathlib import Path
 
 from PyQt5.QtGui import QImage
 from qtpy.QtCore import QObject
@@ -94,3 +98,28 @@ def get_icon(name: str, color: ColorType | None = None) -> QIcon:
 
 def toggle_visible(obj: QObject):
     obj.setVisible(not obj.isVisible())
+
+
+def load_module(path: Path) -> types.ModuleType:
+    """Import the file at path as a python module."""
+
+    # so we can import without tricks
+    sys.path.append(str(path.parent))
+    # strip .py
+    module_name = str(path.with_suffix("").name)
+
+    # if a previous call to load_module has loaded a
+    # module with the same name, this will conflict.
+    # besides, we don't really want this to be importable from anywhere else.
+    if module_name in sys.modules:
+        del sys.modules[module_name]
+
+    try:
+        module = importlib.import_module(module_name)
+    except ImportError:
+        raise
+    finally:
+        # cleanup
+        sys.path.remove(str(path.parent))
+
+    return module

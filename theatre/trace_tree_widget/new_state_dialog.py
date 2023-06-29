@@ -1,11 +1,9 @@
 # Copyright 2022 Canonical Ltd.
 # See LICENSE file for licensing details.
-import importlib
 import os
 import subprocess
 import sys
 import tempfile
-import types
 import typing
 from dataclasses import dataclass
 from enum import Enum
@@ -23,7 +21,7 @@ from qtpy.QtWidgets import (
 from scenario import State
 
 from theatre.config import RESOURCES_DIR
-from theatre.helpers import show_error_dialog, get_icon
+from theatre.helpers import show_error_dialog, get_icon, load_module
 from theatre.logger import logger
 
 if typing.TYPE_CHECKING:
@@ -176,7 +174,7 @@ class NewStateDialog(QDialog):
     def _should_add_to_library(self) -> bool:
         if not self.confirmed:
             raise RuntimeError("not confirmed")
-        return self._add_to_library.checkState()
+        return self._add_to_library.isChecked()
 
     @property
     def _library_name(self) -> str:
@@ -200,26 +198,3 @@ class NewStateDialog(QDialog):
         )
 
 
-def load_module(path: Path) -> types.ModuleType:
-    """Import the file at path as a python module."""
-
-    # so we can import without tricks
-    sys.path.append(str(path.parent))
-    # strip .py
-    module_name = str(path.with_suffix("").name)
-
-    # if a previous call to load_module has loaded a
-    # module with the same name, this will conflict.
-    # besides, we don't really want this to be importable from anywhere else.
-    if module_name in sys.modules:
-        del sys.modules[module_name]
-
-    try:
-        module = importlib.import_module(module_name)
-    except ImportError:
-        raise
-    finally:
-        # cleanup
-        sys.path.remove(str(path.parent))
-
-    return module
