@@ -84,7 +84,7 @@ class CharmCtxLoaderDialog(QDialog):
         fname, _ = QFileDialog.getSaveFileName(
             self,
             "Save template to file",
-            "~",
+            "my_theatre_loader.py",
             PYTHON_SOURCE_TYPE,
             PYTHON_SOURCE_TYPE,
         )
@@ -103,7 +103,7 @@ class CharmCtxLoaderDialog(QDialog):
         fname, _ = QFileDialog.getOpenFileName(
             self,
             "Select a loader file",
-            "~",
+            "",
             PYTHON_SOURCE_TYPE,
             PYTHON_SOURCE_TYPE,
         )
@@ -112,6 +112,9 @@ class CharmCtxLoaderDialog(QDialog):
         self._try_open_source()
 
     def _try_open_source(self):
+        if not self._source:
+            show_error_dialog("no source selected")
+            return
         if sys.platform == "linux":
             subprocess.call(["xdg-open", self._source.name])
         elif sys.platform == "win32":
@@ -171,6 +174,9 @@ class CharmCtxLoaderDialog(QDialog):
         return self._library_name_input.text()
 
     def _get_ctx(self) -> Context:
+        if not self._source:
+            raise RuntimeError("no source selected")
+
         ctx = load_charm_context(self._source)
         try:
             ctx.run("start", State())

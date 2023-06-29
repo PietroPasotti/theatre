@@ -55,7 +55,8 @@ class TheatreMainWindow(NodeEditorWindow):
     def charm_spec(self) -> typing.Union["_CharmSpec", None]:
         if not self._charm_ctx:
             logger.error("select a context first")
-            return None
+            success = self._on_load_charm_context()
+            return self.charm_spec if success else None
         return self._charm_ctx.charm_spec
 
     def initUI(self):
@@ -85,11 +86,11 @@ class TheatreMainWindow(NodeEditorWindow):
         self.windowMapper = QSignalMapper(self)
         self.windowMapper.mapped[QWidget].connect(self.set_active_subwindow)
 
-        self._states = states = Library(self)
-        self._states_dock = states_dock = QDockWidget("Library")
-        states_dock.setWidget(states)
-        states_dock.setFloating(False)
-        self.addDockWidget(Qt.RightDockWidgetArea, states_dock)
+        self._library = library = Library(self)
+        self._library_dock = library_dock = QDockWidget("Library")
+        library_dock.setWidget(library)
+        library_dock.setFloating(False)
+        self.addDockWidget(Qt.RightDockWidgetArea, library_dock)
 
         self._trace_inspector = trace_inspector = TraceInspectorWidget(self)
         self._trace_inspector_dock = trace_inspector_dock = QDockWidget(
@@ -233,7 +234,7 @@ class TheatreMainWindow(NodeEditorWindow):
     def current_node_editor(self) -> NodeEditorWidget | None:
         return self.getCurrentNodeEditorWidget()
 
-    def _on_load_charm_context(self) -> Context | None:
+    def _on_load_charm_context(self) -> bool:
         """Open a dialog to pick a new context."""
 
         dialog = CharmCtxLoaderDialog(self)
@@ -241,12 +242,14 @@ class TheatreMainWindow(NodeEditorWindow):
 
         if not dialog.confirmed:
             logger.info("load charm ctx aborted")
-            return
+            return False
 
         ctx = dialog.finalize()
 
         logger.info(f"set charm context to {ctx}")
         self._update_charm_context(ctx)
+        self.setTitle()
+        return True
 
     def _update_charm_context(self, ctx: Context):
         self._charm_ctx = ctx
@@ -441,7 +444,7 @@ class TheatreMainWindow(NodeEditorWindow):
         menu.clear()
 
         menu.addAction(self.actToggleStatesView)
-        self.actToggleStatesView.setChecked(self._states_dock.isVisible())
+        self.actToggleStatesView.setChecked(self._library_dock.isVisible())
 
         menu.addAction(self.actToggleTraceInspector)
         self.actToggleTraceInspector.setChecked(self._trace_inspector_dock.isVisible())
@@ -480,8 +483,8 @@ class TheatreMainWindow(NodeEditorWindow):
             self.windowMapper.setMapping(action, window)
 
     def _toggle_states(self):
-        # we don't subclass the states dock yet.
-        toggle_visible(self._states_dock)
+        # we don't subclass the library dock yet.
+        toggle_visible(self._library_dock)
 
     def create_toolbars(self):
         pass
@@ -499,7 +502,7 @@ class TheatreMainWindow(NodeEditorWindow):
         trace_tree_editor.state_node_changed.connect(
             self._trace_inspector.on_node_changed
         )
-        trace_tree_editor.state_node_created.connect(self._states.on_node_created)
+        trace_tree_editor.state_node_created.connect(self._library.on_node_created)
         # click on trace tree editor --> display in trace inspector
         trace_tree_editor.state_node_clicked.connect(self._trace_inspector.display)
 
