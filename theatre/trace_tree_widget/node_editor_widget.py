@@ -23,20 +23,20 @@ from theatre.dialogs.file_backed_edit_dialog import Intent
 from theatre.helpers import get_icon
 from theatre.logger import logger
 from theatre.theatre_scene import TheatreScene, SerializedScene
-from theatre.trace_tree_widget.event_dialog import EventPicker, EventSpec, LIFECYCLE_EVENTS
+from theatre.dialogs.event_dialog import EventPicker, EventSpec, LIFECYCLE_EVENTS
 from theatre.trace_tree_widget.event_edge import EventEdge
 from theatre.trace_tree_widget.library_widget import (
     STATE_SPEC_MIMETYPE,
     get_sorted_entries, get_spec, load_subtree_from_file, StateSpec, SubtreeSpec, SUBTREE_SPEC_MIMETYPE,
     DYNAMIC_SUBTREE_SPEC_MIMETYPE, DynamicSubtreeSpec,
 )
-from theatre.trace_tree_widget.new_state_dialog import NewStateDialog
+from theatre.dialogs.new_state import NewStateDialog
 from theatre.trace_tree_widget.state_node import (
     StateNode,
-    GraphicsSocket,
     StateContent,
-    create_new_node, autolayout,
-)
+    create_new_node, )
+from theatre.trace_tree_widget.utils import autolayout
+from theatre.trace_tree_widget.state_bases import GraphicsSocket
 
 from scenario.state import Event, State
 

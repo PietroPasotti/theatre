@@ -17,7 +17,7 @@ from qtpy.QtGui import QIcon
 from theatre.helpers import get_icon, get_color
 from theatre.logger import logger
 from theatre.scenario_json import parse_event
-from theatre.trace_tree_widget.event_dialog import EventSpec
+from theatre.dialogs.event_dialog import EventSpec
 
 if typing.TYPE_CHECKING:
     from theatre.theatre_scene import TheatreScene

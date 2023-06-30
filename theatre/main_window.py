@@ -25,7 +25,7 @@ from scenario import Context
 
 from theatre import config, __version__
 from theatre.config import SCENE_FILE_TYPE
-from theatre.context_loader import load_charm_context, CharmCtxLoaderDialog
+from theatre.dialogs.context_loader import load_charm_context, CharmCtxLoaderDialog
 from theatre.helpers import get_icon, toggle_visible, show_error_dialog
 from theatre.logger import logger
 from theatre.trace_inspector import TraceInspectorWidget

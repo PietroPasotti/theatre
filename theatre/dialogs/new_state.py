@@ -1,11 +1,9 @@
 # Copyright 2022 Canonical Ltd.
 # See LICENSE file for licensing details.
 import typing
-from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
 
-from PyQt5.QtGui import QIcon
 from scenario import State
 
 from theatre.dialogs.file_backed_edit_dialog import FileBackedEditDialog, TEMPLATES_DIR
@@ -17,14 +15,6 @@ if typing.TYPE_CHECKING:
 NEW_STATE_TEMPLATE = TEMPLATES_DIR / "new_state_template.py"
 EDIT_STATE_TEMPLATE = TEMPLATES_DIR / "edit_state_template.py"
 DEFAULT_TEMPLATE = NEW_STATE_TEMPLATE
-
-
-@dataclass
-class StateIntent:
-    state: State
-    add_to_library: bool
-    name: str = ""
-    icon: QIcon = None
 
 
 class Mode(Enum):

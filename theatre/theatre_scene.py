@@ -16,9 +16,9 @@ from theatre.logger import logger
 from theatre.trace_tree_widget.event_edge import EventEdge
 from theatre.trace_tree_widget.state_node import (
     StateNode,
-    GraphicsSocket,
     StateContent,
 )
+from theatre.trace_tree_widget.state_bases import GraphicsSocket
 
 if typing.TYPE_CHECKING:
     from theatre.main_window import TheatreMainWindow

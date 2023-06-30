@@ -16,7 +16,8 @@ from qtpy.QtWidgets import QTreeView
 
 from theatre.logger import logger
 from theatre.helpers import get_icon, get_color, toggle_visible
-from theatre.trace_tree_widget.state_node import StateNode, StateNodeOutput
+from theatre.trace_tree_widget.state_node import StateNode
+from theatre.trace_tree_widget.structs import StateNodeOutput
 
 if typing.TYPE_CHECKING:
     from theatre.trace_tree_widget.event_edge import EventEdge

@@ -1,44 +1,38 @@
 # Copyright 2022 Canonical Ltd.
 # See LICENSE file for licensing details.
-import contextlib
-import inspect
 import typing
-from dataclasses import dataclass, asdict
+from dataclasses import asdict
 from itertools import count
 
 import scenario
-from PyQt5.QtGui import QPainterPath, QBrush, QFont
-from PyQt5.QtWidgets import QGraphicsTextItem
 from nodeeditor.node_content_widget import QDMNodeContentWidget
-from nodeeditor.node_graphics_node import QDMGraphicsNode
 from nodeeditor.node_node import Node
 from nodeeditor.node_socket import (
     LEFT_CENTER,
     RIGHT_CENTER,
-    Socket as _Socket,
-    QDMGraphicsSocket,
 )
 from nodeeditor.utils import dumpException
 from qtpy.QtCore import QEvent
 from qtpy.QtCore import QPoint
-from qtpy.QtCore import QRectF
 from qtpy.QtCore import Qt, Signal
 from qtpy.QtGui import QIcon
-from qtpy.QtGui import QPainter
 from qtpy.QtWidgets import QLineEdit
 from qtpy.QtWidgets import QVBoxLayout, QWidget
-from scenario.state import JujuLogLine, State, Event
+from scenario.state import State
 
-from theatre.helpers import get_icon, get_color
+from theatre.helpers import get_icon
 from theatre.logger import logger
 from theatre.scenario_json import parse_state
-from theatre.trace_tree_widget import new_state_dialog
+from theatre.dialogs import new_state
+from theatre.trace_tree_widget.delta import DeltaSocket, Delta, DeltaNode
 from theatre.trace_tree_widget.event_edge import EventEdge
+from theatre.trace_tree_widget.scenario_interface import run_scenario
+from theatre.trace_tree_widget.state_bases import StateGraphicsNode, Socket
+from theatre.trace_tree_widget.structs import StateNodeOutput
 
 if typing.TYPE_CHECKING:
     from theatre.theatre_scene import TheatreScene
     from theatre.trace_tree_widget.node_editor_widget import GraphicsView
-    from scenario.state import _CharmSpec
 
 ALLOW_INPUTS_ON_CUSTOM_NODES = False
 """Allow custom nodes to have inputs; i.e. if you add an incoming edge, the custom node 
@@ -47,140 +41,7 @@ will be reset and lost."""
 GREEDY_NODE_EVALUATION = True
 """Greedily, automatically evaluate newly created or newly connected nodes."""
 
-
-class StateGraphicsNode(QDMGraphicsNode):
-    node: "StateNode"
-
-    def initSizes(self):
-        super().initSizes()
-        self.width = 160
-        self.height = 84
-        self.edge_roundness = 6
-        self.edge_padding = 0
-        self.title_horizontal_padding = 8
-        self.title_vertical_padding = 10
-        self.title_height = 24
-        self.deltabox_height = 24
-        self.deltabox_vertical_padding = 5
-
-    def initAssets(self):
-        super().initAssets()
-        # FIXME: colors don't quite work as intended here, somehow...?
-        self._icon_ok = get_icon("stars")
-        self._icon_dirty = get_icon("flaky")
-        self._icon_invalid = get_icon("error")
-        self._color_ok = get_color("pastel green")
-        self._color_dirty = get_color("pastel orange")
-        self._color_invalid = get_color("pastel red")
-        self._brush_delta = QBrush(get_color("lavender"))
-        self._delta_label_color = get_color("black")
-        self._delta_label_font = QFont("Ubuntu", 9)
-
-    def boundingRect(self) -> QRectF:
-        """Defining Qt' bounding rectangle"""
-        n_deltas = len(self.node.deltas)
-        return QRectF(
-            0,
-            0,
-            self.width,
-            self.height + self.deltabox_height * n_deltas + self.deltabox_vertical_padding * n_deltas
-        ).normalized()
-
-    def initUI(self):
-        super().initUI()
-        self.init_delta_labels()
-
-    def _delta_topleft_corners(self):
-        dbox_vpadding = self.deltabox_vertical_padding
-        h = self.height
-        dbox_h = self.deltabox_height
-
-        for i, delta in enumerate(self.node.deltas):
-            topleft_y = h + ((dbox_h + dbox_vpadding) * i) + dbox_vpadding
-            yield topleft_y
-
-    def init_delta_labels(self):
-        self.delta_gr_items = delta_gr_items = []
-        for y, delta in zip(self._delta_topleft_corners(), self.node.deltas):
-            gritem = QGraphicsTextItem(self)
-            gritem.node = self.node
-            gritem.setPlainText(delta.name)
-            gritem.setDefaultTextColor(self._delta_label_color)
-            gritem.setFont(self._delta_label_font)
-            gritem.setPos(self.title_horizontal_padding, y)
-            gritem.setTextWidth(
-                self.width
-                - 2 * self.title_horizontal_padding
-            )
-            delta_gr_items.append(gritem)
-
-    def paint(self, painter: QPainter, QStyleOptionGraphicsItem, widget=None):
-        super().paint(painter, QStyleOptionGraphicsItem, widget)
-
-        if self.node.isInvalid():
-            icon = self._icon_invalid
-            color = self._color_invalid
-        elif self.node.isDirty():
-            icon = self._icon_dirty
-            color = self._color_dirty
-        else:
-            icon = self._icon_ok
-            color = self._color_ok
-
-        rect = QRectF(160 - 24, 0, 24.0, 24.0)
-        painter.setPen(color)
-        painter.drawEllipse(rect)
-        pxmp = icon.pixmap(34, 34)
-        painter.drawImage(rect, pxmp.toImage())
-
-        dbox_h = self.deltabox_height
-
-        for y, delta in zip(self._delta_topleft_corners(), self.node.deltas):
-            # draw a box for the deltas
-            path_title = QPainterPath()
-            path_title.setFillRule(Qt.WindingFill)
-
-            path_title.addRoundedRect(0, y, self.width, dbox_h, self.edge_roundness, self.edge_roundness)
-            painter.setPen(Qt.NoPen)
-            painter.setBrush(self._brush_delta)
-            painter.drawPath(path_title.simplified())
-
-            path_outline = QPainterPath()
-            path_outline.addRoundedRect(0, y, self.width, dbox_h, self.edge_roundness, self.edge_roundness)
-            painter.setBrush(Qt.NoBrush)
-            if self.hovered:
-                painter.setPen(self._pen_hovered)
-                painter.drawPath(path_outline.simplified())
-                painter.setPen(self._pen_default)
-                painter.drawPath(path_outline.simplified())
-            else:
-                painter.setPen(self._pen_default if not self.isSelected() else self._pen_selected)
-                painter.drawPath(path_outline.simplified())
-
-    def hoverEnterEvent(self, event) -> None:
-        super().hoverEnterEvent(event)
-        self.setCursor(Qt.OpenHandCursor)
-
-    def mouseMoveEvent(self, event):
-        super().mouseMoveEvent(event)
-        self.setCursor(Qt.ClosedHandCursor)
-
-    def mouseReleaseEvent(self, event):
-        super().mouseReleaseEvent(event)
-        # assuming we're still hovering it:
-        if self.hovered:
-            self.setCursor(Qt.OpenHandCursor)
-        else:
-            self.setCursor(Qt.ArrowCursor)
-
-    def hoverLeaveEvent(self, event) -> None:
-        super().hoverLeaveEvent(event)
-        self.setCursor(Qt.ArrowCursor)
-
-
-
 NEWSTATECTR = count()
-NEWDELTACTR = count()
 
 
 class StateContent(QDMNodeContentWidget):
@@ -221,37 +82,8 @@ class StateContent(QDMNodeContentWidget):
         e.accept()
 
 
-class GraphicsSocket(QDMGraphicsSocket):
-    def __init__(self, socket: "Socket"):
-        super().__init__(socket)
-        self.radius = 6
-        self.outline_width = 1
-
-
-class Socket(_Socket):
-    Socket_GR_Class = GraphicsSocket
-
-
-class DeltaSocket(Socket):
-    pass
-
-
-@dataclass
-class StateNodeOutput:
-    state: typing.Optional[scenario.State] = None
-    charm_logs: typing.Optional[typing.List[JujuLogLine]] = None
-    scenario_logs: typing.Optional[str] = None
-    traceback: typing.Optional[inspect.Traceback] = None
-
-
 class ParentEvaluationFailed(RuntimeError):
     """Raised by StateNode._evaluate if the parent node's evaluation fails."""
-
-
-@dataclass
-class Delta:
-    get: typing.Callable[[State], State]
-    name: str
 
 
 class SocketType:
@@ -283,9 +115,9 @@ class StateNode(Node):
 
         # todo delta creation and editing user flow
         self.deltas: typing.List[Delta] = [
-            Delta(lambda x: x, f"identity {next(NEWDELTACTR)}"),
-            Delta(lambda x: x.replace(leader=True), f"leadermaker {next(NEWDELTACTR)}"),
-            Delta(lambda x: x.replace(leader=False), f"leaderunmaker {next(NEWDELTACTR)}")
+            # Delta(lambda x: x, f"identity {next(NEWDELTACTR)}"),
+            # Delta(lambda x: x.replace(leader=True), f"leadermaker {next(NEWDELTACTR)}"),
+            # Delta(lambda x: x.replace(leader=False), f"leaderunmaker {next(NEWDELTACTR)}")
         ]
         self._is_custom = False
         super().__init__(scene, name, [SocketType.INPUT], [SocketType.OUTPUT])
@@ -435,7 +267,7 @@ class StateNode(Node):
         event_spec = self.edge_in.event_spec
 
         logger.info(f"{'re' if self.value else ''}computing state on {self}")
-        return _evaluate(state_in.state, self.scene.charm_spec, event_spec.event)
+        return run_scenario(state_in.state, self.scene.charm_spec, event_spec.event)
 
     def onInputChanged(self, socket: "Socket"):
         super().onInputChanged(socket)
@@ -443,7 +275,7 @@ class StateNode(Node):
             self.eval()
 
     def open_edit_dialog(self, parent: QWidget = None):
-        dialog = new_state_dialog.NewStateDialog(parent, mode=new_state_dialog.Mode.edit, base=self)
+        dialog = new_state.NewStateDialog(parent, mode=new_state.Mode.edit, base=self)
         dialog.exec()
 
         if not dialog.confirmed:
@@ -561,6 +393,18 @@ class StateNode(Node):
         outs = self.getOutputs()
         return outs[0] if outs else None
 
+    def edit_deltas(self):
+        dialog = new_state.NewStateDialog(self, mode=new_state.Mode.edit, base=self)
+        dialog.exec()
+
+        if not dialog.confirmed:
+            logger.info("new state dialog aborted")
+            return
+
+        intent = dialog.finalize()
+        self.deltas = intent.output
+
+
 
 def create_new_node(
         scene: "TheatreScene", view: "GraphicsView", pos: QPoint, name: str = "State",
@@ -580,91 +424,3 @@ def create_new_node(
     return new_state_node
 
 
-class DeltaNode:
-    def __init__(self, node: "StateNode", delta: Delta):
-        self._base_node = node
-        self._delta = delta
-        self._cached_value = None
-
-    def __repr__(self):
-        return f"<DeltaNode {self._delta.name}>"
-
-    def __getattr__(self, item):
-        # proxy all node calls
-        return getattr(self._base_node, item)
-
-    def _get_input_state(self) -> StateNodeOutput:
-        """Get the output of the previous node."""
-        # todo: cache input
-        base_node_output = self._base_node.eval()
-        deltaed_state = self._delta.get(base_node_output.state)
-
-        if not isinstance(deltaed_state, State):
-            raise RuntimeError(
-                f"Applying {self.delta} to {base_node_output.state} "
-                f"yielded {type(deltaed_state)} "
-                f"instead of scenario.State."
-            )
-
-        return StateNodeOutput(
-            state=deltaed_state,
-            charm_logs=None,
-            scenario_logs=None,
-            traceback=None, # todo?
-        )
-
-    def eval(self) -> StateNodeOutput:
-        state_in = self._get_input_state()
-        edge_in = self.edge_in
-        if not edge_in:
-            # root node! return unmodified state
-            return state_in
-
-        event_spec = edge_in.event_spec
-        logger.info(f"{'re' if self.value else ''}computing state on {self}")
-        return _evaluate(state_in.state, self.scene.charm_spec, event_spec.event)
-
-
-def _evaluate(state: State, charm_spec: "_CharmSpec", event: Event):
-    scenario_stdout_buffer = ""
-    # fixme: logging redirect not quite working
-
-    class StreamWrapper:
-        def write(self, msg):
-            if msg and not msg.isspace():
-                nonlocal scenario_stdout_buffer
-                scenario_stdout_buffer += msg
-
-        def flush(self):
-            pass
-
-    with contextlib.redirect_stdout(StreamWrapper()):
-        ctx = scenario.Context(
-            charm_type=charm_spec.charm_type, meta={"name": "dummy"}
-        )
-        state_out = ctx.run(state=state, event=event)
-
-    # whatever Scenario outputted is in 'scenario_stdout_buffer' now.
-
-    return StateNodeOutput(state_out, ctx.juju_log, scenario_stdout_buffer)
-
-
-def autolayout(node: StateNode,
-               align: typing.Literal['top', 'bottom', 'center'] = 'top'):
-    pos = node.pos
-    children: typing.Iterable[StateNode] = node.getOutputs()
-    xpos = pos.x() + node.grNode.width * 1.5
-    ypos = pos.y()
-    vspacing = node.grNode.height * 1.5
-
-    if align == 'top':
-        baseline = ypos
-    elif align == "center":
-        baseline = ypos - vspacing * len(children) / 2
-    else:
-        baseline = ypos - vspacing * len(children)
-
-    for i, child in enumerate(children):
-        child.setPos(xpos, baseline + vspacing * i)
-        child.updateConnectedEdges()
-        autolayout(child)

@@ -15,14 +15,7 @@ from theatre.helpers import load_module
 from theatre.helpers import show_error_dialog
 from theatre.logger import logger
 
-if typing.TYPE_CHECKING:
-    pass
-
 LOADER_TEMPLATE = TEMPLATES_DIR / "loader_template.py"
-
-
-class ValidationError(RuntimeError):
-    pass
 
 
 class CharmCtxLoaderDialog(FileBackedEditDialog):
@@ -86,7 +79,7 @@ class CharmCtxLoaderDialog(FileBackedEditDialog):
         try:
             ctx.run("start", State())
         except Exception as e:
-            raise ValidationError(
+            raise RuntimeError(
                 "should be able to run the context on `start` and an empty State."
             ) from e
         return ctx
