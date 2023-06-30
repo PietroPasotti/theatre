@@ -18,6 +18,7 @@ from qtpy.QtWidgets import (
 from scenario import State, Context
 
 from theatre.config import RESOURCES_DIR, PYTHON_SOURCE_TYPE
+from theatre.dialogs.file_backed_edit_dialog import FileBackedEditDialog, TEMPLATES_DIR, read_template
 from theatre.helpers import load_module
 from theatre.helpers import show_error_dialog, get_icon
 from theatre.logger import logger
@@ -25,65 +26,38 @@ from theatre.logger import logger
 if typing.TYPE_CHECKING:
     pass
 
-LOADER_TEMPLATE = RESOURCES_DIR / "templates" / "loader_template.py"
+LOADER_TEMPLATE = TEMPLATES_DIR / "loader_template.py"
 
 
 class ValidationError(RuntimeError):
     pass
 
 
-class CharmCtxLoaderDialog(QDialog):
-    def __init__(self, parent=None, title: str = "Select a charm context."):
-        super().__init__(parent)
-        self.setWindowTitle(title)
-        self._button_box = QDialogButtonBox()
+class CharmCtxLoaderDialog(FileBackedEditDialog):
 
-        self._explanation = QLabel()
-
-        self._explanation.setText(
-            f"""Please select a context loader file, or create a templated one."""
+    def __init__(self, parent=None):
+        super().__init__(
+            parent,
+            "Select or create a context loader file."
         )
 
-        init_from_template = QPushButton("Save template")
-        init_from_template.setToolTip(
+        self._open_existing_button = existing = QPushButton("Select existing")
+        existing.setToolTip("Select an existing loader.")
+        self._button_box.addButton(existing, self._button_box.ActionRole)
+        existing.clicked.connect(self._on_existing_loader_click)
+
+        self._new_from_template = new_from_template = QPushButton("New from template")
+        new_from_template.setToolTip(
             "Create a new loader file from template. "
             "Save the template file to your charm repository root and edit it.")
+        self._button_box.addButton(new_from_template, self._button_box.ActionRole)
+        new_from_template.clicked.connect(self._on_new_from_template_click)
 
-        existing_loader = QPushButton("Existing loader")
-        existing_loader.setToolTip("Select an existing loader.")
-
-        self._source: Path = None
-
-        self._check = check = QPushButton("Check")
-        check.setToolTip("Validate the loader file.")
-        check.setIcon(get_icon("flaky"))
-
-        button_box = self._button_box
-        button_box.clear()
-
-        button_box.addButton(init_from_template, QDialogButtonBox.ActionRole)
-        button_box.addButton(existing_loader, QDialogButtonBox.ActionRole + 1)
-        button_box.addButton(check, QDialogButtonBox.ApplyRole)
-        self._abort = button_box.addButton("Abort", QDialogButtonBox.NoRole)
-        self._confirm = button_box.addButton("Confirm", QDialogButtonBox.YesRole)
-
-        check.clicked.connect(self._check_valid)
-        init_from_template.clicked.connect(self._on_init_from_template_click)
-        existing_loader.clicked.connect(self._on_existing_loader_click)
-        button_box.accepted.connect(self._on_confirm)
-        button_box.rejected.connect(self._on_abort)
-
-        self._layout = QVBoxLayout()
-        self._layout.addWidget(self._explanation)
-        self._layout.addWidget(button_box)
-
-        self.setLayout(self._layout)
-        self.confirmed = False
-
-    def _on_init_from_template_click(self):
+    def _on_new_from_template_click(self):
+        # let the user create a file.
         fname, _ = QFileDialog.getSaveFileName(
             self,
-            "Save template to file",
+            "Choose a file to save the loader to",
             "my_theatre_loader.py",
             PYTHON_SOURCE_TYPE,
             PYTHON_SOURCE_TYPE,
@@ -96,8 +70,10 @@ class CharmCtxLoaderDialog(QDialog):
             logger.error(msg, exc_info=True)
             show_error_dialog(self, msg)
             return
-        self._source = path
-        self._try_open_source()
+        self._set_source(path)
+
+    def closeEvent(self, a0: QtGui.QCloseEvent) -> None:
+        super().closeEvent(a0)
 
     def _on_existing_loader_click(self):
         fname, _ = QFileDialog.getOpenFileName(
@@ -108,72 +84,9 @@ class CharmCtxLoaderDialog(QDialog):
             PYTHON_SOURCE_TYPE,
         )
         path = Path(fname)
-        self._source = path
-        self._try_open_source()
+        self._set_source(path)
 
-    def _try_open_source(self):
-        if not self._source:
-            show_error_dialog("no source selected")
-            return
-        if sys.platform == "linux":
-            subprocess.call(["xdg-open", self._source.name])
-        elif sys.platform == "win32":
-            os.startfile(self._source.name)
-        else:
-            show_error_dialog(
-                f"unsupported platform: {sys.platform}; "
-                f"edit the file manually and click check/confirm when ready."
-            )
-
-    def closeEvent(self, a0: QtGui.QCloseEvent) -> None:
-        super().closeEvent(a0)
-        self._on_abort()
-
-    def _on_abort(self):
-        self.close()
-
-    def _on_confirm(self):
-        self._check_valid()
-        if not self._is_valid:
-            show_error_dialog(self, 'cannot confirm while invalid')
-            return
-
-        self.confirmed = True
-        self.close()
-
-    def _check_valid(self):
-        valid = self._is_valid
-        self._confirm.setEnabled(valid)
-        self._check.setIcon(get_icon("stars") if valid else get_icon("error"))
-
-    @property
-    def _is_valid(self) -> bool:
-        try:
-            self._get_ctx()
-        except Exception as e:
-            logger.error(f"error validating", exc_info=True)
-            show_error_dialog(
-                self,
-                f"an exception occurred while attempting to validate: {e}. "
-                f"See the logs for more details.",
-            )
-            return False
-
-        return True
-
-    @property
-    def _should_add_to_library(self) -> bool:
-        if not self.confirmed:
-            raise RuntimeError("not confirmed")
-        return self._add_to_library.checkState()
-
-    @property
-    def _library_name(self) -> str:
-        if not self.confirmed:
-            raise RuntimeError("not confirmed")
-        return self._library_name_input.text()
-
-    def _get_ctx(self) -> Context:
+    def get_output(self) -> Context:
         if not self._source:
             raise RuntimeError("no source selected")
 
@@ -185,9 +98,6 @@ class CharmCtxLoaderDialog(QDialog):
                 "should be able to run the context on `start` and an empty State."
             ) from e
         return ctx
-
-    def finalize(self) -> Context:
-        return self._get_ctx()
 
 
 class InvalidLoader(RuntimeError):

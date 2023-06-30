@@ -13,6 +13,7 @@ from qtpy.QtWidgets import QListWidget, QAbstractItemView, QListWidgetItem
 from scenario import State
 
 from theatre.config import RESOURCES_DIR
+from theatre.dialogs.file_backed_edit_dialog import Intent
 from theatre.helpers import get_icon
 from theatre.logger import logger
 
@@ -152,11 +153,11 @@ class Library(QListWidget):
 
         self._add_entries()
 
-    def on_node_created(self, state_intent: "StateIntent"):
+    def on_node_created(self, state_intent: "Intent"):
         if state_intent.add_to_library:
-            self._add_state(
+            self._add_entry(
                 StateSpec(
-                    state=state_intent.state,
+                    state=state_intent.output,
                     icon=state_intent.icon,
                     name=state_intent.name
                 )

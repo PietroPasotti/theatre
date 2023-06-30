@@ -20,6 +20,7 @@ from qtpy.QtGui import QPixmap
 from qtpy.QtWidgets import QAction, QGraphicsProxyWidget, QMenu
 from qtpy.QtWidgets import QVBoxLayout
 
+from theatre.dialogs.file_backed_edit_dialog import Intent
 from theatre.helpers import get_icon
 from theatre.logger import logger
 from theatre.theatre_scene import TheatreScene, SerializedScene
@@ -38,17 +39,16 @@ from theatre.trace_tree_widget.state_node import (
     create_new_node, autolayout,
 )
 
-from scenario.state import Event
+from scenario.state import Event, State
 
 if typing.TYPE_CHECKING:
-    from scenario.state import _CharmSpec
     from theatre.main_window import TheatreMainWindow
 
 DEBUG = False
 DEBUG_CONTEXT = False
 
 
-def get_new_custom_state(parent=None) -> typing.Optional[StateIntent]:
+def get_new_custom_state(parent=None) -> typing.Optional[Intent[State]]:
     dialog = NewStateDialog(parent)
     dialog.exec()
 
@@ -139,7 +139,7 @@ class GraphicsView(QDMGraphicsView):
 class NodeEditorWidget(_NodeEditorWidget):
     view: GraphicsView
     scene: TheatreScene
-    state_node_created = Signal(StateIntent)
+    state_node_created = Signal(Intent)
     state_node_changed = Signal(StateNode)
     state_node_clicked = Signal(StateNode)
 
@@ -501,7 +501,7 @@ class NodeEditorWidget(_NodeEditorWidget):
 
         logger.info(f"created new state! {state_intent}")
         node = self._new_node()
-        node.set_custom_value(state_intent.state)
+        node.set_custom_value(state_intent.output)
         self.state_node_created.emit(state_intent)
 
     def _attach_sequence(self, start: StateNode, name="test_linear_subtree"):

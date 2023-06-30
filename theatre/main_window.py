@@ -255,7 +255,7 @@ class TheatreMainWindow(NodeEditorWindow):
             logger.info("load charm ctx aborted")
             return False
 
-        ctx = dialog.finalize()
+        ctx = dialog.finalize().output
 
         logger.info(f"set charm context to {ctx}")
         self._update_charm_context(ctx)

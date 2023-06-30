@@ -453,7 +453,7 @@ class StateNode(Node):
             return
 
         intent = dialog.finalize()
-        self.set_custom_value(intent.state)
+        self.set_custom_value(intent.output)
 
     def update_value(self, new_value: StateNodeOutput) -> StateNodeOutput:
         # todo: also update library, name and icon
