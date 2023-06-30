@@ -4,22 +4,16 @@ import json
 import os
 import typing
 
-import ops
 from nodeeditor.node_scene import Scene as _Scene, InvalidFile
 from nodeeditor.node_scene_clipboard import SceneClipboard as _SceneClipboard
 from qtpy.QtCore import QObject
 from qtpy.QtCore import QPoint
 from qtpy.QtCore import Signal
-from qtpy.QtGui import QDragMoveEvent
 from qtpy.QtWidgets import QGraphicsItem
 from qtpy.QtWidgets import QGraphicsProxyWidget
 
 from theatre.logger import logger
 from theatre.trace_tree_widget.event_edge import EventEdge
-from theatre.trace_tree_widget.library_widget import (
-    STATE_SPEC_MIMETYPE,
-    SUBTREE_SPEC_MIMETYPE,
-)
 from theatre.trace_tree_widget.state_node import (
     StateNode,
     GraphicsSocket,

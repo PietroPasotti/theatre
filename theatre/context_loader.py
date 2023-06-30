@@ -1,26 +1,18 @@
 # Copyright 2022 Canonical Ltd.
 # See LICENSE file for licensing details.
 
-import os
-import subprocess
-import sys
 import typing
 from pathlib import Path
 
 from PyQt5.QtWidgets import QFileDialog
 from qtpy import QtGui
-from qtpy.QtWidgets import QLabel, QPushButton
-from qtpy.QtWidgets import (
-    QVBoxLayout,
-    QDialog,
-    QDialogButtonBox,
-)
+from qtpy.QtWidgets import QPushButton
 from scenario import State, Context
 
-from theatre.config import RESOURCES_DIR, PYTHON_SOURCE_TYPE
-from theatre.dialogs.file_backed_edit_dialog import FileBackedEditDialog, TEMPLATES_DIR, read_template
+from theatre.config import PYTHON_SOURCE_TYPE
+from theatre.dialogs.file_backed_edit_dialog import FileBackedEditDialog, TEMPLATES_DIR
 from theatre.helpers import load_module
-from theatre.helpers import show_error_dialog, get_icon
+from theatre.helpers import show_error_dialog
 from theatre.logger import logger
 
 if typing.TYPE_CHECKING:

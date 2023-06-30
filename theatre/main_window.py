@@ -393,7 +393,7 @@ class TheatreMainWindow(NodeEditorWindow):
 
         QMessageBox.about(
             self,
-            f"About",
+            "About",
             about_txt
         )
 

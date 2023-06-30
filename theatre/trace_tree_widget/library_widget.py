@@ -5,7 +5,6 @@ import typing
 from dataclasses import dataclass
 from pathlib import Path
 
-from nodeeditor.utils import dumpException
 from qtpy.QtCore import QSize, Qt, QByteArray, QDataStream, QMimeData, QIODevice, QPoint
 from qtpy.QtGui import QDrag
 from qtpy.QtGui import QIcon
@@ -19,7 +18,6 @@ from theatre.logger import logger
 
 if typing.TYPE_CHECKING:
     from theatre.theatre_scene import SerializedScene
-    from theatre.trace_tree_widget.new_state_dialog import StateIntent
     from scenario.state import _CharmSpec
 
 STATE_SPEC_MIMETYPE = "application/x-state"

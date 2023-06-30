@@ -16,7 +16,6 @@ from qtpy.QtCore import QEvent
 from qtpy.QtCore import QPoint
 from qtpy.QtCore import Signal
 from qtpy.QtGui import QMouseEvent
-from qtpy.QtGui import QPixmap
 from qtpy.QtWidgets import QAction, QGraphicsProxyWidget, QMenu
 from qtpy.QtWidgets import QVBoxLayout
 
@@ -31,7 +30,7 @@ from theatre.trace_tree_widget.library_widget import (
     get_sorted_entries, get_spec, load_subtree_from_file, StateSpec, SubtreeSpec, SUBTREE_SPEC_MIMETYPE,
     DYNAMIC_SUBTREE_SPEC_MIMETYPE, DynamicSubtreeSpec,
 )
-from theatre.trace_tree_widget.new_state_dialog import NewStateDialog, StateIntent
+from theatre.trace_tree_widget.new_state_dialog import NewStateDialog
 from theatre.trace_tree_widget.state_node import (
     StateNode,
     GraphicsSocket,
@@ -249,7 +248,7 @@ class NodeEditorWidget(_NodeEditorWidget):
         for node in self.scene.nodes:
             try:
                 node.eval()
-            except Exception as e:
+            except Exception:
                 logger.error(f"error evaluating {node}", exc_info=True)
 
     def on_history_restored(self):

@@ -8,7 +8,7 @@ from pathlib import Path
 from PyQt5.QtGui import QIcon
 from scenario import State
 
-from theatre.dialogs.file_backed_edit_dialog import FileBackedEditDialog, read_template, TEMPLATES_DIR
+from theatre.dialogs.file_backed_edit_dialog import FileBackedEditDialog, TEMPLATES_DIR
 from theatre.helpers import load_module
 
 if typing.TYPE_CHECKING:

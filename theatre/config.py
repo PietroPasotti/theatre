@@ -6,4 +6,4 @@ RESOURCES_DIR = Path(__file__).parent / "resources"
 
 SCENE_EXTENSION = ".theatre"
 SCENE_FILE_TYPE = f"Scene (*{SCENE_EXTENSION});;All files (*)"
-PYTHON_SOURCE_TYPE = f"Python source (*.py);;All files (*)"
+PYTHON_SOURCE_TYPE = "Python source (*.py);;All files (*)"

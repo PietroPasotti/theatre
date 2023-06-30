@@ -3,17 +3,15 @@
 import typing
 from dataclasses import asdict
 
-from PyQt5.QtCore import QPointF
 from PyQt5.QtGui import QPainter, QPainterPath
-from PyQt5.QtWidgets import QGraphicsPixmapItem, QWidget
-from nodeeditor.node_edge import Edge as _Edge, EDGE_TYPE_DIRECT, EDGE_TYPE_DEFAULT
+from PyQt5.QtWidgets import QWidget
+from nodeeditor.node_edge import Edge as _Edge, EDGE_TYPE_DIRECT
 from nodeeditor.node_edge_validators import (
     edge_validator_debug,
     edge_cannot_connect_two_outputs_or_two_inputs,
     edge_cannot_connect_input_and_output_of_same_node,
 )
 from nodeeditor.node_graphics_edge import QDMGraphicsEdge
-from qtpy.QtWidgets import QLabel
 from qtpy.QtGui import QIcon
 
 from theatre.helpers import get_icon, get_color

@@ -164,7 +164,7 @@ class FileBackedEditDialog(QDialog):
         try:
             self.get_output()
         except Exception as e:
-            logger.error(f"error getting state", exc_info=True)
+            logger.error("error getting state", exc_info=True)
             show_error_dialog(
                 self,
                 f"Selected source ({self._source}) is invalid: {e}. "

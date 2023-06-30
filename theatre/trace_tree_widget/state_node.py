@@ -133,8 +133,6 @@ class StateGraphicsNode(QDMGraphicsNode):
         pxmp = icon.pixmap(34, 34)
         painter.drawImage(rect, pxmp.toImage())
 
-        dbox_vpadding = self.deltabox_vertical_padding
-        h = self.height
         dbox_h = self.deltabox_height
 
         for y, delta in zip(self._delta_topleft_corners(), self.node.deltas):
@@ -381,7 +379,7 @@ class StateNode(Node):
         """The EventEdge that, combined with the parent state, gave this state."""
         try:
             return self.inputs[0].edges[0]
-        except IndexError as e:
+        except IndexError:
             return None
 
     @property
@@ -389,7 +387,7 @@ class StateNode(Node):
         """The EventEdge that, combined with the parent state, gave this state."""
         try:
             return self.outputs[0].edges[0]
-        except IndexError as e:
+        except IndexError:
             return None
 
     def get_title(self):
@@ -496,13 +494,13 @@ class StateNode(Node):
 
     def eval(self) -> StateNodeOutput:
         if self._is_custom:
-            logger.info(f"Skipping eval of custom node.")
+            logger.info("Skipping eval of custom node.")
             self.markInvalid(False)
             self.markDirty(False)
             return self.value
 
         if not self.isDirty() and not self.isInvalid():
-            logger.info(f"Returning cached value.")
+            logger.info("Returning cached value.")
             return self.value
 
         try:
