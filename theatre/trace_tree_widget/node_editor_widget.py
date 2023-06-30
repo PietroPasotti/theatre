@@ -162,7 +162,7 @@ class NodeEditorWidget(_NodeEditorWidget):
 
     @property
     def _charm_spec(self):
-        return self._main_window._charm_ctx.charm_spec
+        return self._main_window.charm_spec
 
     def initUI(self):
         """Set up this ``NodeEditorWidget`` with its layout.`"""
@@ -378,6 +378,8 @@ class NodeEditorWidget(_NodeEditorWidget):
         )
         force_reeval = context_menu.addAction(
             get_icon("start"), "Force-reevaluate")
+        context_menu.addAction(
+            get_icon("delete"), "Delete node", selected.remove)
         edit_action = context_menu.addAction(get_icon("edit"), "Edit")
 
         branch_submenu = context_menu.addMenu(get_icon("arrow_split"), "Branch")

@@ -173,7 +173,7 @@ class EventEdge(_Edge):
 
     def serialize(self):
         if not self.end_socket or not self.start_socket:
-            raise RuntimeError('cannot serialize! missing socket')
+            raise RuntimeError(f'cannot serialize {self}! missing socket')
         if not self._event_spec:
             logger.warning('should not quite serialize: event edge '
                            'underspecified, missing event spec')

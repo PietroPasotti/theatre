@@ -38,6 +38,10 @@ if typing.TYPE_CHECKING:
 
 
 # os.environ["QT_QPA_PLATFORM"] = "offscreen"
+TESTING = True
+if TESTING:
+    logger.warning("TESTING MODE ON")
+USE_LOADER_TEMPLATE_BY_DEFAULT = TESTING
 
 # TODO: disable edgeIntersect functionality
 
@@ -54,6 +58,13 @@ class TheatreMainWindow(NodeEditorWindow):
     @property
     def charm_spec(self) -> typing.Union["_CharmSpec", None]:
         if not self._charm_ctx:
+            if USE_LOADER_TEMPLATE_BY_DEFAULT:
+                logger.warning("using default loader template; normally you'd get a dialog here.")
+                self._charm_ctx = ctx = load_charm_context(
+                    Path("/home/pietro/canonical/theatre/theatre/resources/templates/loader_template.py")
+                )
+                return ctx.charm_spec
+
             logger.error("select a context first")
             success = self._on_load_charm_context()
             return self.charm_spec if success else None
