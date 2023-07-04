@@ -1,7 +1,7 @@
 # Copyright 2022 Canonical Ltd.
 # See LICENSE file for licensing details.
 import inspect
-import typing
+from dataclasses import dataclass
 from pathlib import Path
 
 from theatre.dialogs.file_backed_edit_dialog import FileBackedEditDialog, TEMPLATES_DIR
@@ -10,28 +10,35 @@ from theatre.logger import logger
 
 DELTA_TEMPLATE = TEMPLATES_DIR / "delta_template.py"
 
-if typing.TYPE_CHECKING:
-    from theatre.trace_tree_widget.delta import Delta
+from theatre.trace_tree_widget.delta import Delta
+
+
+@dataclass
+class DeltaDialogOutput:
+    deltas: ["Delta"]
+    source: str
 
 
 class EditDeltaDialog(FileBackedEditDialog):
-    OFFER_LIBRARY_OPTION = True
+    OFFER_LIBRARY_OPTION = False
 
-    def __init__(self, parent=None):
-        super().__init__(parent, title="Edit Deltas", from_tempfile=DELTA_TEMPLATE.read_text())
+    def __init__(self, parent=None, source: Path | None = None):
+        from_template = source or DELTA_TEMPLATE
+        super().__init__(parent, title="Edit Deltas", from_tempfile=from_template.read_text())
 
-    def get_output(self) -> typing.List["Delta"]:
-        module = load_module(Path(self._source.name))
+    def get_output(self) -> DeltaDialogOutput:
+        source = Path(self._source)
+        module = load_module(source)
         collected = []
 
-        for obj in inspect.getmembers(module):
-            if not inspect.isfunction(obj):
-                logger.info(f"ignored {obj} as it is not a function")
+        for name, value in inspect.getmembers(module):
+            if not inspect.isfunction(value):
+                logger.info(f"ignored {name}:{value} as it is not a function")
                 continue
 
             # todo check signature?
-            collected.append(Delta(obj, obj.__name__))
+            collected.append(Delta(value, name))
 
         if not collected:
             logger.warning(f"no deltas collected from {self._source}")
-        return collected
+        return DeltaDialogOutput(collected, source.read_text())

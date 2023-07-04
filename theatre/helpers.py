@@ -14,6 +14,7 @@ from qtpy.QtSvg import QSvgRenderer
 from qtpy.QtWidgets import QWidget, QMessageBox
 
 from theatre.config import RESOURCES_DIR
+from theatre.logger import logger
 from theatre.resources.x11_colors import X11_COLORS
 
 ColorType = typing.Union[str, typing.Tuple[int, int, int]]
@@ -117,6 +118,7 @@ def load_module(path: Path) -> types.ModuleType:
     try:
         module = importlib.import_module(module_name)
     except ImportError:
+        logger.error(f"cannot import {path} as a python module")
         raise
     finally:
         # cleanup

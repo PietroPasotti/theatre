@@ -1,7 +1,6 @@
 # Copyright 2022 Canonical Ltd.
 # See LICENSE file for licensing details.
 
-import typing
 from pathlib import Path
 
 from PyQt5.QtWidgets import QFileDialog

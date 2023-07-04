@@ -18,7 +18,7 @@ from theatre.trace_tree_widget.state_node import (
     StateNode,
     StateContent,
 )
-from theatre.trace_tree_widget.state_bases import GraphicsSocket
+from theatre.trace_tree_widget.state_bases import GraphicsSocket, StateGraphicsNode, DeltaLabel
 
 if typing.TYPE_CHECKING:
     from theatre.main_window import TheatreMainWindow
@@ -114,6 +114,10 @@ class TheatreScene(QObject, _Scene):
     def charm_spec(self):
         return self._main_window.charm_spec
 
+    @property
+    def context(self):
+        return self._main_window.context
+
     def loadFromFile(self, filename: str):
         with open(filename, "r") as file:
             raw_data = file.read()
@@ -200,12 +204,12 @@ class TheatreScene(QObject, _Scene):
         return True
 
     def get_node_at(self, pos: QPoint) -> StateNode | None:
-        nearest = self.find_nearest_parent_at(pos, (GraphicsSocket, StateContent))
+        nearest = self.find_nearest_parent_at(pos, (GraphicsSocket, StateContent, StateGraphicsNode, DeltaLabel))
         if nearest is None:
             return None
         if isinstance(nearest, GraphicsSocket):
             return nearest.socket.node
-        elif isinstance(nearest, StateContent):
+        elif isinstance(nearest, (StateGraphicsNode, StateContent, DeltaLabel)):
             return nearest.node
         else:
             raise TypeError(nearest)
@@ -223,13 +227,13 @@ class TheatreScene(QObject, _Scene):
             item = item.widget()
 
         while item:
+            print(f'item: {item}')
             if isinstance(item, types):
                 return item
-
             # happens on edges
             if not hasattr(item, "parent"):
                 logger.warn(f'encountered unexpected item type while climbing up parents: {item}')
                 return None
-
             item = item.parent()
+
         return item

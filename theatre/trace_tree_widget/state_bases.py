@@ -2,6 +2,7 @@
 # See LICENSE file for licensing details.
 import typing
 
+from PyQt5.QtWidgets import QWidget
 from qtpy.QtCore import QRectF, Qt
 from qtpy.QtGui import QBrush, QFont, QPainter, QPainterPath
 from qtpy.QtWidgets import QGraphicsTextItem
@@ -15,8 +16,19 @@ if typing.TYPE_CHECKING:
     from theatre.trace_tree_widget.state_node import StateNode
 
 
+class DeltaLabel(QGraphicsTextItem):
+    def __init__(self, parent: "StateGraphicsNode", delta):
+        super().__init__(parent)
+        self.delta = delta
+        self.node = parent.node
+
+
 class StateGraphicsNode(QDMGraphicsNode):
     node: "StateNode"
+
+    def __init__(self, node: "StateNode", parent: QWidget = None):
+        self.delta_gr_items: typing.List[QGraphicsTextItem] = []
+        super().__init__(node, parent)
 
     def initSizes(self):
         super().initSizes()
@@ -67,9 +79,17 @@ class StateGraphicsNode(QDMGraphicsNode):
             yield topleft_y
 
     def init_delta_labels(self):
+        """Init or reinit labels for the deltas."""
+        existing_items = self.delta_gr_items
+        # clear if existing
+        for existing in existing_items:
+            existing.hide()
+            existing.deleteLater()
+
+        # create anew
         self.delta_gr_items = delta_gr_items = []
         for y, delta in zip(self._delta_topleft_corners(), self.node.deltas):
-            gritem = QGraphicsTextItem(self)
+            gritem = DeltaLabel(self, delta)
             gritem.node = self.node
             gritem.setPlainText(delta.name)
             gritem.setDefaultTextColor(self._delta_label_color)

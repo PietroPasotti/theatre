@@ -57,18 +57,23 @@ class TheatreMainWindow(NodeEditorWindow):
 
     @property
     def charm_spec(self) -> typing.Union["_CharmSpec", None]:
+        return self._charm_ctx.charm_spec
+
+    @property
+    def context(self):
         if not self._charm_ctx:
             if USE_LOADER_TEMPLATE_BY_DEFAULT:
                 logger.warning("using default loader template; normally you'd get a dialog here.")
-                self._charm_ctx = ctx = load_charm_context(
+                ctx = load_charm_context(
                     Path("/home/pietro/canonical/theatre/theatre/resources/templates/loader_template.py")
                 )
-                return ctx.charm_spec
+                self._update_charm_context(ctx)
+                return ctx
 
             logger.error("select a context first")
             success = self._on_load_charm_context()
-            return self.charm_spec if success else None
-        return self._charm_ctx.charm_spec
+            return self._charm_ctx if success else None
+        return self._charm_ctx
 
     def initUI(self):
         self.name_company = "Canonical"
@@ -264,6 +269,7 @@ class TheatreMainWindow(NodeEditorWindow):
 
     def _update_charm_context(self, ctx: Context):
         self._charm_ctx = ctx
+        self.setTitle()
 
     def _on_new_custom_state(self):
         editor = self.current_node_editor

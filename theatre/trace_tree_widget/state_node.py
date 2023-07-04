@@ -3,6 +3,7 @@
 import typing
 from dataclasses import asdict
 from itertools import count
+from pathlib import Path
 
 import scenario
 from nodeeditor.node_content_widget import QDMNodeContentWidget
@@ -23,7 +24,7 @@ from scenario.state import State
 from theatre.helpers import get_icon
 from theatre.logger import logger
 from theatre.scenario_json import parse_state
-from theatre.dialogs import new_state
+from theatre.dialogs import new_state, edit_delta
 from theatre.trace_tree_widget.delta import DeltaSocket, Delta, DeltaNode
 from theatre.trace_tree_widget.event_edge import EventEdge
 from theatre.trace_tree_widget.scenario_interface import run_scenario
@@ -113,18 +114,22 @@ class StateNode(Node):
     ):
         self._is_null = False
 
-        # todo delta creation and editing user flow
+        # python file where the deltas are defined
+        self._deltas_source: Path | None = None
+
+        # deltas parsed from the source.
         self.deltas: typing.List[Delta] = [
             # Delta(lambda x: x, f"identity {next(NEWDELTACTR)}"),
             # Delta(lambda x: x.replace(leader=True), f"leadermaker {next(NEWDELTACTR)}"),
             # Delta(lambda x: x.replace(leader=False), f"leaderunmaker {next(NEWDELTACTR)}")
         ]
+
         self._is_custom = False
         super().__init__(scene, name, [SocketType.INPUT], [SocketType.OUTPUT])
         self.icon: QIcon = icon or self._get_icon()
         self.value: typing.Optional[StateNodeOutput] = None
         self.scene = typing.cast("TheatreScene", self.scene)
-        self._is_dirty = True
+        self.markDirty()
         self.grNode.title_item.setParent(self.content)
         self._update_title()
 
@@ -154,13 +159,24 @@ class StateNode(Node):
         return [x, y]
 
     def _init_delta_sockets(self):
+        # clear existing
+        new_outputs = []
+        for socket in self.outputs:
+            if isinstance(socket, DeltaSocket):
+                socket.delete()
+            else:
+                new_outputs.append(socket)
+
         for i, delta in enumerate(self.deltas):
             socket = DeltaSocket(
                 node=DeltaNode(self, delta), index=i + 1, position=self.output_socket_position,
                 socket_type=SocketType.DELTA_OUTPUT, multi_edges=self.output_multi_edged,
                 count_on_this_node_side=i + 1, is_input=False
             )
-            self.outputs.append(socket)
+            new_outputs.append(socket)
+
+        self.outputs.clear()
+        self.outputs.extend(new_outputs)
 
     def set_custom_value(self, state: State):
         """Overrides any value with this state and configures this as a custom node."""
@@ -267,7 +283,7 @@ class StateNode(Node):
         event_spec = self.edge_in.event_spec
 
         logger.info(f"{'re' if self.value else ''}computing state on {self}")
-        return run_scenario(state_in.state, self.scene.charm_spec, event_spec.event)
+        return run_scenario(self.scene.context, state_in.state, event_spec.event)
 
     def onInputChanged(self, socket: "Socket"):
         super().onInputChanged(socket)
@@ -284,6 +300,22 @@ class StateNode(Node):
 
         intent = dialog.finalize()
         self.set_custom_value(intent.output)
+
+    def open_edit_deltas_dialog(self, parent: QWidget = None):
+        dialog = edit_delta.EditDeltaDialog(parent, self._deltas_source)
+        dialog.exec()
+
+        if not dialog.confirmed:
+            logger.info("new state dialog aborted")
+            return
+
+        intent = dialog.finalize()
+        output = intent.output
+
+        self.deltas = output.deltas
+        self._deltas_source = output.source
+        self._init_delta_sockets()
+        self.grNode.init_delta_labels()
 
     def update_value(self, new_value: StateNodeOutput) -> StateNodeOutput:
         # todo: also update library, name and icon
@@ -392,17 +424,6 @@ class StateNode(Node):
         """The next state, if any."""
         outs = self.getOutputs()
         return outs[0] if outs else None
-
-    def edit_deltas(self):
-        dialog = new_state.NewStateDialog(self, mode=new_state.Mode.edit, base=self)
-        dialog.exec()
-
-        if not dialog.confirmed:
-            logger.info("new state dialog aborted")
-            return
-
-        intent = dialog.finalize()
-        self.deltas = intent.output
 
 
 

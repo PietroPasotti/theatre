@@ -80,8 +80,6 @@ class EventEdge(_Edge):
 
         if event_spec:
             self.set_event_spec(event_spec)
-        else:
-            self._notify_end_node()
 
     def _update_icon(self):
         self.icon = self._get_icon()
@@ -164,7 +162,6 @@ class EventEdge(_Edge):
     def set_event_spec(self, spec: EventSpec):
         self._event_spec = spec
         self.grEdge.changeColor(self._get_color())
-        self._notify_end_node()
         self.grEdge.setToolTip(spec.event.name)
         self._update_icon()
         # self.grEdge.set_label(spec.event.name)

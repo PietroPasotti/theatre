@@ -17,7 +17,6 @@ from qtpy.QtWidgets import (
     QDialog,
     QDialogButtonBox,
 )
-from scenario import State
 
 from theatre.config import RESOURCES_DIR
 from theatre.helpers import show_error_dialog, get_icon
@@ -35,13 +34,13 @@ T = typing.TypeVar("T")
 
 @dataclass
 class Intent(typing.Generic[T]):
-    output: [T]
+    output: T
     add_to_library: bool
     name: str = ""
     icon: QIcon = None
 
 
-class FileBackedEditDialog(QDialog):
+class FileBackedEditDialog(QDialog, typing.Generic[T]):
     OFFER_LIBRARY_OPTION = False
     EDIT_BUTTON_TEXT = "Edit"
 
@@ -56,15 +55,6 @@ class FileBackedEditDialog(QDialog):
         button_box.clear()
 
         self._explanation = QLabel()
-
-        if from_tempfile:
-            tf = tempfile.NamedTemporaryFile(
-                dir="/tmp", prefix="edit_state", suffix=".py"
-            )
-            Path(tf.name).write_text(from_tempfile)
-            self._tempfile = tf
-            self._set_source(Path(tf.name))
-
         self._explanation.setText(instructions)
         self._edit_button = edit = QPushButton(self.EDIT_BUTTON_TEXT)
         self._check_button = check = QPushButton("Check")
@@ -94,8 +84,16 @@ class FileBackedEditDialog(QDialog):
 
         self.setLayout(self._layout)
         self.confirmed = False
-        self._source: Path
-        self._set_source(None, _check_valid=False)  # type:ignore
+
+        if from_tempfile:
+            tf = tempfile.NamedTemporaryFile(
+                dir="/tmp", prefix="theatre_", suffix=".py"
+            )
+            Path(tf.name).write_text(from_tempfile)
+            self._tempfile = tf
+            self._set_source(Path(tf.name))
+        else:
+            self._set_source(None, _check_valid=False)  # type:ignore
 
     def _set_source(self, file: Path, _check_valid: bool = True):
         self._source = file
@@ -114,9 +112,9 @@ class FileBackedEditDialog(QDialog):
     def _open_source_in_system_editor(self):
         """Attempt to open source file in system editor."""
         if sys.platform == "linux":
-            subprocess.call(["xdg-open", self._source.name])
+            subprocess.call(["xdg-open", str(self._source)])
         elif sys.platform == "win32":
-            os.startfile(self._source.name)
+            os.startfile(str(self._source))
         else:
             show_error_dialog(
                 self,
@@ -177,7 +175,7 @@ class FileBackedEditDialog(QDialog):
 
     @property
     def _should_add_to_library(self) -> bool:
-        if not self.self.OFFER_LIBRARY_OPTION:
+        if not self.OFFER_LIBRARY_OPTION:
             return False
         if not self.confirmed:
             raise RuntimeError("not confirmed")
@@ -185,7 +183,7 @@ class FileBackedEditDialog(QDialog):
 
     @property
     def _library_name(self) -> str | None:
-        if not self.self.OFFER_LIBRARY_OPTION:
+        if not self.OFFER_LIBRARY_OPTION:
             return None
         if not self.confirmed:
             raise RuntimeError("not confirmed")
@@ -194,7 +192,7 @@ class FileBackedEditDialog(QDialog):
     def get_output(self) -> T:
         raise NotImplementedError("override get_output")
 
-    def finalize(self) -> Intent[State]:
+    def finalize(self) -> Intent[T]:
         return Intent(
             self.get_output(),
             self._should_add_to_library,

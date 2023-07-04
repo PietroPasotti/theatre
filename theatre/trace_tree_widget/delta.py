@@ -66,6 +66,6 @@ class DeltaNode:
             # root node! return unmodified state
             return state_in
 
-        event_spec = edge_in.event_spec
         logger.info(f"{'re' if self.value else ''}computing state on {self}")
-        return _evaluate(state_in.state, self.scene.charm_spec, event_spec.event)
+        raise NotImplementedError('todo')
+        # return run_scenario(self.scene.context, state_in.state, event_spec.event)

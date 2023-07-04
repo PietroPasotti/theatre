@@ -4,13 +4,13 @@ import contextlib
 
 import scenario
 from scenario import State, Event
-from scenario.state import _CharmSpec
 
 from theatre.trace_tree_widget.structs import StateNodeOutput
 
 
-def run_scenario(state: State, charm_spec: "_CharmSpec", event: Event):
+def run_scenario(context: scenario.Context, state: State, event: Event):
     scenario_stdout_buffer = ""
+
     # fixme: logging redirect not quite working
 
     class StreamWrapper:
@@ -23,11 +23,8 @@ def run_scenario(state: State, charm_spec: "_CharmSpec", event: Event):
             pass
 
     with contextlib.redirect_stdout(StreamWrapper()):
-        ctx = scenario.Context(
-            charm_type=charm_spec.charm_type, meta={"name": "dummy"}
-        )
-        state_out = ctx.run(state=state, event=event)
+        state_out = context.run(state=state, event=event)
 
     # whatever Scenario outputted is in 'scenario_stdout_buffer' now.
 
-    return StateNodeOutput(state_out, ctx.juju_log, scenario_stdout_buffer)
+    return StateNodeOutput(state_out, context.juju_log, scenario_stdout_buffer)

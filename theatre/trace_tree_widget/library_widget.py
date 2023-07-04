@@ -18,13 +18,12 @@ from theatre.logger import logger
 
 if typing.TYPE_CHECKING:
     from theatre.theatre_scene import SerializedScene
-    from scenario.state import _CharmSpec
 
 STATE_SPEC_MIMETYPE = "application/x-state"
 SUBTREE_SPEC_MIMETYPE = "application/x-subtree"
 DYNAMIC_SUBTREE_SPEC_MIMETYPE = "application/x-subtree-dynamic"
 SUBTREES_DIR = RESOURCES_DIR / 'subtrees'
-DYNAMIC_SUBTREES_TEMPLATES_DIR = RESOURCES_DIR / 'dynamic_subtree_templates'
+DYNAMIC_SUBTREES_TEMPLATES_DIR = SUBTREES_DIR / 'dynamic'
 STATES_DIR = RESOURCES_DIR / 'states'
 
 
@@ -59,7 +58,7 @@ class SubtreeSpec(LibraryEntry):
 @dataclass
 class DynamicSubtreeSpec(LibraryEntry):
     """Library entry defining a dynamically generated sequence of events."""
-    generate_graph: typing.Callable[["_CharmSpec", ], "SerializedScene"] = None
+    # the graph is created by the node editor
 
 
 def load_subtree_from_file(filename: Path) -> "SerializedScene":
@@ -69,27 +68,20 @@ def load_subtree_from_file(filename: Path) -> "SerializedScene":
     return obj
 
 
-def choose_relation(charm_spec: "_CharmSpec") -> str:
-    return "foo"
-
-
-def _get_relation_subtree(charm_spec: "_CharmSpec", ) -> "SerializedScene":
-    """Generate a subtree for a standard relation lifecycle."""
-    relation_name = choose_relation(charm_spec)
-    filename = DYNAMIC_SUBTREES_TEMPLATES_DIR / 'relation_lifecycle.theatre'
-    text = filename.read_text().replace("{relation_name}", relation_name)
-    obj = json.loads(text)
-    return obj
-
-
 # Library database
 CATALOGUE: [LibraryEntry] = []
+
+
+class DynamicSubtreeName:
+    RELATION_LIFECYCLE = "Relation lifecycle"
+    FAN_OUT = "Fan out"
 
 
 def _load_all_builtin_dynamic_subtrees():
     standard_icon = get_icon("arrow_split_magic")
     CATALOGUE.extend([
-        DynamicSubtreeSpec(standard_icon, "Relation lifecycle", _get_relation_subtree)
+        DynamicSubtreeSpec(standard_icon, DynamicSubtreeName.RELATION_LIFECYCLE),
+        DynamicSubtreeSpec(get_icon("hub"), DynamicSubtreeName.FAN_OUT),
     ])
 
 
@@ -113,9 +105,17 @@ def _load_all_builtin_subtrees():
         )
 
 
+_SPEC_ORDERING = {
+    StateSpec: 0,
+    SubtreeSpec: 1,
+    DynamicSubtreeSpec: 2,
+}
+
+
 def get_sorted_entries(type_: type | typing.Tuple[type, ...] = None) -> [LibraryEntry]:
+    """All library entries in the catalogue, sorted by type first, by name second."""
     entries = filter(lambda x: isinstance(x, type_), CATALOGUE) if type_ else CATALOGUE
-    return sorted(entries, key=lambda spec: spec.name)
+    return sorted(entries, key=lambda spec: (_SPEC_ORDERING[type(spec)], spec.name))
 
 
 def get_spec(name: str) -> LibraryEntry:

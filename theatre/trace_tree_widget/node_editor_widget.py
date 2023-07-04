@@ -1,5 +1,6 @@
 # Copyright 2022 Canonical Ltd.
 # See LICENSE file for licensing details.
+import json
 import typing
 from functools import partial
 
@@ -27,8 +28,8 @@ from theatre.dialogs.event_dialog import EventPicker, EventSpec, LIFECYCLE_EVENT
 from theatre.trace_tree_widget.event_edge import EventEdge
 from theatre.trace_tree_widget.library_widget import (
     STATE_SPEC_MIMETYPE,
-    get_sorted_entries, get_spec, load_subtree_from_file, StateSpec, SubtreeSpec, SUBTREE_SPEC_MIMETYPE,
-    DYNAMIC_SUBTREE_SPEC_MIMETYPE, DynamicSubtreeSpec,
+    get_sorted_entries, get_spec, StateSpec, SubtreeSpec, SUBTREE_SPEC_MIMETYPE,
+    DYNAMIC_SUBTREE_SPEC_MIMETYPE, DynamicSubtreeSpec, DynamicSubtreeName, DYNAMIC_SUBTREES_TEMPLATES_DIR,
 )
 from theatre.dialogs.new_state import NewStateDialog
 from theatre.trace_tree_widget.state_node import (
@@ -38,7 +39,7 @@ from theatre.trace_tree_widget.state_node import (
 from theatre.trace_tree_widget.utils import autolayout
 from theatre.trace_tree_widget.state_bases import GraphicsSocket
 
-from scenario.state import Event, State
+from scenario import Event, State, Relation
 
 if typing.TYPE_CHECKING:
     from theatre.main_window import TheatreMainWindow
@@ -291,10 +292,12 @@ class NodeEditorWidget(_NodeEditorWidget):
         # if hovering on state: accept SUBTREE SPEC drops
         mime_data = event.mimeData()
 
+        # TODO: if we're dropping something on a Delta...
+
         for mimetype, method in (
-            (STATE_SPEC_MIMETYPE, self._drop_node),
-            (SUBTREE_SPEC_MIMETYPE, self._drop_subtree),
-            (DYNAMIC_SUBTREE_SPEC_MIMETYPE, self._drop_dynamic_subtree),
+                (STATE_SPEC_MIMETYPE, self._drop_node),
+                (SUBTREE_SPEC_MIMETYPE, self._drop_subtree),
+                (DYNAMIC_SUBTREE_SPEC_MIMETYPE, self._drop_dynamic_subtree),
         ):
             if mime_data.hasFormat(mimetype):
                 event_data = mime_data.data(mimetype)
@@ -328,8 +331,7 @@ class NodeEditorWidget(_NodeEditorWidget):
 
     def _drop_dynamic_subtree(self, spec: DynamicSubtreeSpec, pos: QPoint):
         start = self.scene.get_node_at(pos)
-        graph = spec.generate_graph(self._charm_spec)
-        self._paste_subtree(start, graph)
+        self._paste_dynamic_subtree(start, spec)
         self.scene.history.storeHistory(f"Added dynamic subtree {spec.name}")
 
     def contextMenuEvent(self, event):
@@ -373,27 +375,26 @@ class NodeEditorWidget(_NodeEditorWidget):
         mark_dirty_action = context_menu.addAction(
             get_icon("recycling"), "Mark Dirty", selected.markDirty)
         evaluate_action = context_menu.addAction(
-            get_icon("start"),  "Evaluate", selected.eval
+            get_icon("start"), "Evaluate", selected.eval
         )
         force_reeval = context_menu.addAction(
             get_icon("start"), "Force-reevaluate")
         context_menu.addAction(
             get_icon("delete"), "Delete node", selected.remove)
         edit_action = context_menu.addAction(get_icon("edit"), "Edit")
-
+        context_menu.addAction(
+            get_icon("edit_delta"), "Deltas",
+            lambda: selected.open_edit_deltas_dialog(self)
+        )
         branch_submenu = context_menu.addMenu(get_icon("arrow_split"), "Branch")
         branch_actions = []
         subtree: SubtreeSpec
-        for subtree in get_sorted_entries(SubtreeSpec):
+        for subtree in get_sorted_entries((SubtreeSpec, DynamicSubtreeSpec)):
             branch_action = branch_submenu.addAction(
                 subtree.icon, subtree.name,
-                partial(self._paste_subtree, selected, subtree.graph)
+                partial(self._on_branch_action, selected, subtree)
             )
             branch_actions.append(branch_action)
-
-        branch_submenu.addAction(
-            get_icon('hub'), "Fan out", lambda: self._fan_out(selected)
-        )
 
         # markDirtyDescendantsAct = context_menu.addAction("Mark Descendant Dirty")
         # markInvalidAct = context_menu.addAction("Mark Invalid")
@@ -419,22 +420,6 @@ class NodeEditorWidget(_NodeEditorWidget):
         else:
             logger.info(f'chosen action: {action}')
             # other actions should handle themselves
-
-    def _fan_out(self, start: StateNode):
-        """Experimental action to branch out in all possible directions from a start."""
-
-        for event in LIFECYCLE_EVENTS:
-            # todo avoid generating inconsistent paths.
-            new_node = self._new_node()
-
-            EventEdge(
-                self.scene,
-                start.output_socket,
-                new_node.input_socket,
-                event_spec=EventSpec(Event(event), {})
-            )
-
-        autolayout(start, align='center')
 
     def _on_edge_context_menu(self, event, edge: "EventEdge"):
         context_menu = QMenu(self)
@@ -469,7 +454,7 @@ class NodeEditorWidget(_NodeEditorWidget):
 
     def _new_node(self, pos: QPoint = None) -> StateNode:
         # fixme: this is the topleft corner, somehow
-        pos = pos or self.view.scene().sceneRect().center().toPoint()
+        pos = pos or self.mapToGlobal(self.view.scene().sceneRect().center().toPoint())
         new_node = create_new_node(scene=self.scene,
                                    view=self.view,
                                    pos=pos)
@@ -503,11 +488,59 @@ class NodeEditorWidget(_NodeEditorWidget):
         node.set_custom_value(state_intent.output)
         self.state_node_created.emit(state_intent)
 
-    def _attach_sequence(self, start: StateNode, name="test_linear_subtree"):
-        data = load_subtree_from_file(name)
-        self._paste_subtree(start, data)
+    def _on_branch_action(self, start: StateNode, data: DynamicSubtreeSpec | SubtreeSpec):
+        if isinstance(data, SubtreeSpec):
+            return self._paste_subtree(start, data.graph)
+        return self._paste_dynamic_subtree(start, data)
 
-    def _paste_subtree(self, start: StateNode, data: SerializedScene):
+    def _paste_dynamic_subtree(self, start: StateNode, subtree: DynamicSubtreeSpec):
+        if subtree.name == DynamicSubtreeName.FAN_OUT:
+            return self._fan_out(start)
+        elif subtree.name == DynamicSubtreeName.RELATION_LIFECYCLE:
+            return self._extend_with_relation_lifecycle(start)
+        else:
+            logger.error(f"unknown subtree: {subtree.name}")
+
+    def _fan_out(self, start: StateNode):
+        """Experimental action to branch out in all possible directions from a start."""
+
+        for event in LIFECYCLE_EVENTS:
+            # todo avoid generating inconsistent paths.
+            new_node = self._new_node()
+
+            EventEdge(
+                self.scene,
+                start.output_socket,
+                new_node.input_socket,
+                event_spec=EventSpec(Event(event), {})
+            )
+
+        autolayout(start, align='center')
+
+    def _choose_relation(self, node: StateNode) -> Relation:
+        return Relation('foo', relation_id=0)
+
+    def _extend_with_relation_lifecycle(self, start: StateNode):
+        """Generate a subtree for a standard relation lifecycle."""
+        relation = self._choose_relation(start)
+
+        if not relation:
+            logger.error("no relation name chosen; aborting")
+            return
+
+        filename = DYNAMIC_SUBTREES_TEMPLATES_DIR / 'relation_lifecycle.theatre'
+        text = filename.read_text().replace("{relation_name}", relation.endpoint)
+        obj = json.loads(text)
+        new_nodes = self._paste_subtree(start, obj)
+        # we need to inject the relation into each event edge
+        for node in new_nodes:
+            edge_in = node.edge_in
+            event_spec = edge_in.event_spec
+            event_spec.event = event_spec.event.replace(relation=relation)
+            # silently update
+            edge_in.set_event_spec(event_spec)
+
+    def _paste_subtree(self, start: StateNode, data: SerializedScene) -> typing.List[StateNode]:
         created_nodes = self.scene.clipboard.deserializeFromClipboard(data)
         roots: typing.List[StateNode] = list(filter(lambda node: node.is_root, created_nodes))
 
@@ -521,6 +554,7 @@ class NodeEditorWidget(_NodeEditorWidget):
         next_node = edge.end_node
 
         root.remove()
+        created_nodes.remove(root)
 
         EventEdge(
             edge.scene,
@@ -531,3 +565,4 @@ class NodeEditorWidget(_NodeEditorWidget):
         )
 
         autolayout(start)
+        return created_nodes

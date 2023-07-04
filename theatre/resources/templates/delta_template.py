@@ -1,11 +1,11 @@
 from scenario import *
 
 
-def with_leadership(state: State):
+def with_leadership(state: State) -> State:
     return state.with_leadership(True)
 
 
-def with_foo_relation(state: State):
+def with_foo_relation(state: State) -> State:
     return state.replace(
         relations=[
             Relation(

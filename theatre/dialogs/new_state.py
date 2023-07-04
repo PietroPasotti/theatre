@@ -2,12 +2,12 @@
 # See LICENSE file for licensing details.
 import typing
 from enum import Enum
-from pathlib import Path
 
 from scenario import State
 
 from theatre.dialogs.file_backed_edit_dialog import FileBackedEditDialog, TEMPLATES_DIR
 from theatre.helpers import load_module
+from theatre.logger import logger
 
 if typing.TYPE_CHECKING:
     from theatre.trace_tree_widget.state_node import StateNode
@@ -26,6 +26,7 @@ class NewStateDialog(FileBackedEditDialog):
     OFFER_LIBRARY_OPTION = True
 
     def __init__(self, parent=None, mode: Mode = Mode.new, base: "StateNode" = None):
+        logger.info(f"opening state dialog in mode {mode}")
         if mode is Mode.new:
             title = "New Root State."
             template_text = NEW_STATE_TEMPLATE.read_text()
@@ -44,7 +45,7 @@ class NewStateDialog(FileBackedEditDialog):
         super().__init__(parent, title, template_text)
 
     def get_output(self) -> State:
-        module = load_module(Path(self._source.name))
+        module = load_module(self._source)
         state = getattr(module, "STATE")
         if not isinstance(state, State):
             raise TypeError(type(state))
