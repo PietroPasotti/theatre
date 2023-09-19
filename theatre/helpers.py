@@ -1,6 +1,7 @@
 # Copyright 2022 Canonical Ltd.
 # See LICENSE file for licensing details.
 import importlib
+import os
 import sys
 import types
 import typing
@@ -21,10 +22,10 @@ ColorType = typing.Union[str, typing.Tuple[int, int, int]]
 DEFAULT_ICON_PIXMAP_RESOLUTION = 100
 CUSTOM_COLORS = {
     # state node icon
+    "invalid": (138, 0, 0),
     "pastel green": (138, 255, 153),
     "pastel orange": (255, 185, 64),
     "pastel red": (245, 96, 86),
-
     # event edge colors
     "relation event": "#D474AF",
     "secret event": "#A9FAC8",
@@ -45,8 +46,12 @@ def get_color(color: ColorType):
     elif isinstance(color, str):
         for db in (CUSTOM_COLORS, X11_COLORS):
             if mapped_color := db.get(color, None):
-                return QColor(mapped_color) if isinstance(mapped_color, str) else QColor(*mapped_color)
-    raise RuntimeError(f'invalid input: unable to map {color} to QColor.')
+                return (
+                    QColor(mapped_color)
+                    if isinstance(mapped_color, str)
+                    else QColor(*mapped_color)
+                )
+    raise RuntimeError(f"invalid input: unable to map {color} to QColor.")
 
 
 class Color(QWidget):
@@ -60,7 +65,7 @@ class Color(QWidget):
 
 
 def show_error_dialog(
-        parent, message: str, title="Whoopsiedaisies!", choices=QMessageBox.Ok
+    parent, message: str, title="Whoopsiedaisies!", choices=QMessageBox.Ok
 ):
     return QMessageBox.critical(parent, title, message, choices)
 
@@ -84,12 +89,14 @@ def colorized(name: str, color: QColor, res: int = 500):
     return QIcon(pxmp)
 
 
-def get_icon(name: str, color: ColorType | None = None) -> QIcon:
+def get_icon(
+    name: str, color: ColorType | None = None, path=("icons",), suffix: str = "svg"
+) -> QIcon:
     if color:
         return colorized(name, get_color(color))
 
-    path = RESOURCES_DIR / "icons" / name
-    filename = path.with_suffix(".svg")
+    path = RESOURCES_DIR.joinpath(*path) / name
+    filename = path.with_suffix(f".{suffix}")
     if not filename.exists():
         raise ValueError(name)
 
@@ -101,11 +108,13 @@ def toggle_visible(obj: QObject):
     obj.setVisible(not obj.isVisible())
 
 
-def load_module(path: Path) -> types.ModuleType:
+def load_module(path: Path, add_to_path: typing.List[Path] = None) -> types.ModuleType:
     """Import the file at path as a python module."""
 
     # so we can import without tricks
-    sys.path.append(str(path.parent))
+    old_path = sys.path.copy()
+    sys.path.extend([str(path.parent)] + (add_to_path or []))
+
     # strip .py
     module_name = str(path.with_suffix("").name)
 
@@ -122,6 +131,6 @@ def load_module(path: Path) -> types.ModuleType:
         raise
     finally:
         # cleanup
-        sys.path.remove(str(path.parent))
+        sys.path = old_path
 
     return module

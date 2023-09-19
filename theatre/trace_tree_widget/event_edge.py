@@ -80,6 +80,7 @@ class EventEdge(_Edge):
 
         if event_spec:
             self.set_event_spec(event_spec)
+        self._notify_end_node()
 
     def _update_icon(self):
         self.icon = self._get_icon()
@@ -135,13 +136,19 @@ class EventEdge(_Edge):
         return typing.cast("StateNode", self.end_socket.node)
 
     @property
+    def is_event_spec_set(self) -> bool:
+        return bool(self._event_spec)
+
+    @property
     def event_spec(self) -> EventSpec:
         if not self._event_spec:
             raise SpecUnsetError(self)
         return self._event_spec
 
     def _get_color(self):
-        event = self._event_spec.event
+        if not self.is_event_spec_set:
+            return get_color("invalid")
+        event = self.event_spec.event
         if event.name == 'update-status':
             return get_color("update-status")
         if event._is_relation_event:

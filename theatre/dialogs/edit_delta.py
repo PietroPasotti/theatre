@@ -22,9 +22,10 @@ class DeltaDialogOutput:
 class EditDeltaDialog(FileBackedEditDialog):
     OFFER_LIBRARY_OPTION = False
 
-    def __init__(self, parent=None, source: Path | None = None):
-        from_template = source or DELTA_TEMPLATE
-        super().__init__(parent, title="Edit Deltas", from_tempfile=from_template.read_text())
+    def __init__(self, parent=None, source: str | None = None):
+        super().__init__(
+            parent, title="Edit Deltas", template=source or DELTA_TEMPLATE.read_text()
+        )
 
     def get_output(self) -> DeltaDialogOutput:
         source = Path(self._source)
@@ -34,6 +35,12 @@ class EditDeltaDialog(FileBackedEditDialog):
         for name, value in inspect.getmembers(module):
             if not inspect.isfunction(value):
                 logger.info(f"ignored {name}:{value} as it is not a function")
+                continue
+
+            if inspect.getmodule(value).__name__ != source.name.split(".")[0]:
+                logger.info(
+                    f"ignored {name}:{value} as it is not defined in the deltas module"
+                )
                 continue
 
             # todo check signature?

@@ -21,11 +21,13 @@ from qtpy.QtWidgets import (
     QMessageBox,
     QFileDialog,
 )
-from scenario import Context
 
 from theatre import config, __version__
+from theatre.charm_repo_tools import CharmRepo, load_charm_context
 from theatre.config import SCENE_FILE_TYPE
-from theatre.dialogs.context_loader import load_charm_context, CharmCtxLoaderDialog
+from theatre.dialogs.context_loader import (
+    CharmCtxLoaderDialog,
+)
 from theatre.helpers import get_icon, toggle_visible, show_error_dialog
 from theatre.logger import logger
 from theatre.trace_inspector import TraceInspectorWidget
@@ -35,15 +37,17 @@ from theatre.trace_tree_widget.node_editor_widget import NodeEditorWidget
 if typing.TYPE_CHECKING:
     from nodeeditor.node_editor_widget import NodeEditorWidget
     from scenario.state import _CharmSpec
+    from scenario import Context
 
 
 # os.environ["QT_QPA_PLATFORM"] = "offscreen"
-TESTING = True
+TESTING = False
 if TESTING:
     logger.warning("TESTING MODE ON")
 USE_LOADER_TEMPLATE_BY_DEFAULT = TESTING
 
 # TODO: disable edgeIntersect functionality
+
 
 class TheatreMainWindow(NodeEditorWindow):
     SHOW_MAXIMIZED = False
@@ -51,22 +55,23 @@ class TheatreMainWindow(NodeEditorWindow):
 
     def __init__(self):
         from scenario import Context
+
         self._charm_ctx: Context | None = None
         self._charm_spec: _CharmSpec | None = None
         super().__init__()
 
     @property
     def charm_spec(self) -> typing.Union["_CharmSpec", None]:
-        return self._charm_ctx.charm_spec
+        return self.context.charm_spec
 
     @property
     def context(self):
         if not self._charm_ctx:
             if USE_LOADER_TEMPLATE_BY_DEFAULT:
-                logger.warning("using default loader template; normally you'd get a dialog here.")
-                ctx = load_charm_context(
-                    Path("/home/pietro/canonical/theatre/theatre/resources/templates/loader_template.py")
+                logger.warning(
+                    "using default loader template; normally you'd get a dialog here."
                 )
+                ctx = load_charm_context(Path())
                 self._update_charm_context(ctx)
                 return ctx
 
@@ -139,7 +144,7 @@ class TheatreMainWindow(NodeEditorWindow):
                 logger.debug("buggity-bug! This should not happen.")
 
         self.setTitle()
-        self.setWindowIcon(get_icon("theatre_logo"))
+        self.setWindowIcon(get_icon("theatre_logo", suffix="png"))
 
     def closeEvent(self, event):
         self.mdiArea.closeAllSubWindows()
@@ -267,7 +272,7 @@ class TheatreMainWindow(NodeEditorWindow):
         self.setTitle()
         return True
 
-    def _update_charm_context(self, ctx: Context):
+    def _update_charm_context(self, ctx: "Context"):
         self._charm_ctx = ctx
         self.setTitle()
 
@@ -282,19 +287,21 @@ class TheatreMainWindow(NodeEditorWindow):
     def _app_data_dir(self) -> Path:
         path = Path(config.APP_DATA_DIR).expanduser().absolute()
         if not path.exists():
-            logger.info(f'app data dir {path} not found; attempting to create')
+            logger.info(f"app data dir {path} not found; attempting to create")
             try:
                 path.mkdir(parents=True)
             except Exception as e:
                 logger.error(e, exc_info=True)
-                logger.warn(f'could not initialize desired theatre data dir {path}; '
-                            f'using cwd instead.')
+                logger.warn(
+                    f"could not initialize desired theatre data dir {path}; "
+                    f"using cwd instead."
+                )
                 return Path()
         return path
 
     def getFileDialogDirectory(self):
         """Scene save file directory."""
-        return str(self._app_data_dir / 'scenes')
+        return str(self._app_data_dir / "scenes")
 
     def onFileSaveAs(self):
         editor: NodeEditorWidget = self.current_node_editor
@@ -313,23 +320,27 @@ class TheatreMainWindow(NodeEditorWindow):
         extension = self.SCENE_EXTENSION
         if not fname.endswith(extension):
             fname += extension
-            logger.warn(f'automatically adding "{extension}": '
-                        f'saving to {Path(fname).absolute()}')
+            logger.warn(
+                f'automatically adding "{extension}": '
+                f"saving to {Path(fname).absolute()}"
+            )
 
         if not fname:
             return False
 
         self.onBeforeSaveAs(editor, fname)
         editor.fileSave(fname)
-        self.statusBar().showMessage(
-            f"Successfully saved as {fname}", 5000
-        )
+        self.statusBar().showMessage(f"Successfully saved as {fname}", 5000)
         editor.update_title()
         return True
 
     def get_title(self):
         """Generate window title."""
-        charm_type = "<no charm selected>" if not self._charm_ctx else self._charm_ctx.charm_spec.charm_type.__name__
+        charm_type = (
+            "<no charm selected>"
+            if not self._charm_ctx
+            else self._charm_ctx.charm_spec.charm_type.__name__
+        )
         title = f"Theatre[{charm_type}]: Trace Tree Editor"
         current_trace_tree = self.mdiArea.currentSubWindow()
         if current_trace_tree:
@@ -356,7 +367,8 @@ class TheatreMainWindow(NodeEditorWindow):
         except Exception as e:
             logger.error(e, exc_info=True)
 
-    def open_if_not_already_open(self, fname: str):
+    def open_if_not_already_open(self, fname: Path | str):
+        fname = Path(fname)
         existing = self.find_mdi_child(fname)
         if existing:
             self.mdiArea.setActiveSubWindow(existing)
@@ -369,9 +381,19 @@ class TheatreMainWindow(NodeEditorWindow):
             else:
                 editor_widget.close()
 
+    def resume_from_charm_repo(self, repo: CharmRepo):
+        # load ctx
+        ctx = repo.load_context()
+        self._update_charm_context(ctx)
+
+        # select a scene to open
+        previous_scene = repo.current_scene
+        if previous_scene:
+            self.open_if_not_already_open(previous_scene)
+
     def getFileDialogFilter(self):
         """Returns ``str`` standard file open/save filter for ``QFileDialog``"""
-        return 'Theatre Graph (*.theatre);;All files (*)'
+        return "Theatre Graph (*.theatre);;All files (*)"
 
     def onFileOpen(self):
         fnames, _ = QFileDialog.getOpenFileNames(
@@ -389,19 +411,15 @@ class TheatreMainWindow(NodeEditorWindow):
             dumpException(e)
 
     def _about(self):
-        about_txt = '\n'.join(
+        about_txt = "\n".join(
             (
                 f"This is Theatre {__version__}.",
                 f"python: {sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}",
-                f"scenario: {version('ops-scenario')}"
+                f"scenario: {version('ops-scenario')}",
             )
         )
 
-        QMessageBox.about(
-            self,
-            "About",
-            about_txt
-        )
+        QMessageBox.about(self, "About", about_txt)
 
     def createFileMenu(self):
         super().createFileMenu()
@@ -541,7 +559,7 @@ class TheatreMainWindow(NodeEditorWindow):
         else:
             event.ignore()
 
-    def find_mdi_child(self, filename):
+    def find_mdi_child(self, filename: str):
         for window in self.mdiArea.subWindowList():
             if window.widget().filename == filename:
                 return window
@@ -570,7 +588,7 @@ class TheatreMainWindow(NodeEditorWindow):
         settings.setValue("open", previous_open)
 
 
-def show_main_window():
+def show_main_window(cwd: Path = None):
     app = QApplication([])
     app.setStyle("Fusion")
 
@@ -580,9 +598,32 @@ def show_main_window():
     else:
         window.show()
 
-    window.open_if_not_already_open("/home/pietro/.local/share/theatre/scenes/myscene.scene")
+    if cwd:
+        repo = CharmRepo(cwd)
+
+        if repo.is_valid:
+            logger.info("charm repo root detected")
+            if repo.is_initialized:
+                logger.info(".theatre found, resuming...")
+                window.resume_from_charm_repo(repo)
+
+            else:
+                logger.info("no .theatre found, attempting init...")
+                repo.initialize()
+
+        if repo.current_scene:
+            window.open_if_not_already_open(repo.current_scene)
+    else:
+        dummy_scene = Path("~/.local/share/theatre/scenes/myscene.scene").expanduser()
+        window.open_if_not_already_open(dummy_scene)
 
     sys.exit(app.exec_())
+
+
+def display(path: typing.Optional[Path] = None):
+    """Open the charm at this path in Theatre."""
+    path = Path(path or os.getcwd())
+    show_main_window(path)
 
 
 if __name__ == "__main__":

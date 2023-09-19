@@ -18,11 +18,9 @@ from qtpy.QtWidgets import (
     QDialogButtonBox,
 )
 
-from theatre.config import RESOURCES_DIR
+from theatre.config import TEMPLATES_DIR
 from theatre.helpers import show_error_dialog, get_icon
 from theatre.logger import logger
-
-TEMPLATES_DIR = RESOURCES_DIR / "templates"
 
 
 def read_template(name, dir=TEMPLATES_DIR):
@@ -44,8 +42,13 @@ class FileBackedEditDialog(QDialog, typing.Generic[T]):
     OFFER_LIBRARY_OPTION = False
     EDIT_BUTTON_TEXT = "Edit"
 
-    def __init__(self, parent=None, title: str = "", from_tempfile: str = "",
-                 instructions: str = "Edit the source file."):
+    def __init__(
+        self,
+        parent=None,
+        title: str = "",
+        template: str = "",
+        instructions: str = "Edit the source file.",
+    ):
         super().__init__(parent)
 
         self.setWindowTitle(title)
@@ -85,11 +88,11 @@ class FileBackedEditDialog(QDialog, typing.Generic[T]):
         self.setLayout(self._layout)
         self.confirmed = False
 
-        if from_tempfile:
+        if template:
             tf = tempfile.NamedTemporaryFile(
                 dir="/tmp", prefix="theatre_", suffix=".py"
             )
-            Path(tf.name).write_text(from_tempfile)
+            Path(tf.name).write_text(template)
             self._tempfile = tf
             self._set_source(Path(tf.name))
         else:
@@ -98,7 +101,9 @@ class FileBackedEditDialog(QDialog, typing.Generic[T]):
     def _set_source(self, file: Path, _check_valid: bool = True):
         self._source = file
         self._explanation.setText(
-            f"Edit the source file: {file}. When ready, confirm." if file else "Select or create a source file."
+            f"Edit the source file: {file}. When ready, confirm."
+            if file
+            else "Select or create a source file."
         )
         logger.info(f"source set to {file}")
         if _check_valid:
@@ -119,7 +124,7 @@ class FileBackedEditDialog(QDialog, typing.Generic[T]):
             show_error_dialog(
                 self,
                 f"unsupported platform: {sys.platform}; "
-                f"edit the file manually and click check/confirm when ready."
+                f"edit the file manually and click check/confirm when ready.",
             )
 
     def closeEvent(self, a0: QtGui.QCloseEvent) -> None:
@@ -144,13 +149,12 @@ class FileBackedEditDialog(QDialog, typing.Generic[T]):
         self._check_button.setIcon(get_icon("stars") if valid else get_icon("error"))
 
     def close(self) -> bool:
-        print('closing')
+        print("closing")
         return super().close()
 
     def _check_source_set(self) -> bool:
         if not self._source:
-            show_error_dialog(self,
-                              'no source file selected')
+            show_error_dialog(self, "no source file selected")
             return False
         return True
 
@@ -167,7 +171,7 @@ class FileBackedEditDialog(QDialog, typing.Generic[T]):
                 self,
                 f"Selected source ({self._source}) is invalid: {e}. "
                 f"See the logs for more details.",
-                title="Invalid."
+                title="Invalid.",
             )
             return False
 

@@ -1,4 +1,0 @@
-qtpy==2.3.1
-PyQt5==5.15.9
-ops-scenario @ git+https://github.com/canonical/ops-scenario@4.0
-nodeeditor==0.9.13

@@ -1,11 +1,13 @@
 # Copyright 2022 Canonical Ltd.
 # See LICENSE file for licensing details.
+import tempfile
 import typing
 from dataclasses import asdict
 from itertools import count
 from pathlib import Path
 
 import scenario
+from PyQt5.QtCore import QPointF
 from nodeeditor.node_content_widget import QDMNodeContentWidget
 from nodeeditor.node_node import Node
 from nodeeditor.node_socket import (
@@ -107,15 +109,15 @@ class StateNode(Node):
     __str__ = __repr__
 
     def __init__(
-            self,
-            scene: "TheatreScene",
-            name="State",
-            icon: QIcon = None,
+        self,
+        scene: "TheatreScene",
+        name="State",
+        icon: QIcon = None,
     ):
         self._is_null = False
 
-        # python file where the deltas are defined
-        self._deltas_source: Path | None = None
+        # raw deltas source code
+        self._deltas_source: str | None = None
 
         # deltas parsed from the source.
         self.deltas: typing.List[Delta] = [
@@ -145,7 +147,9 @@ class StateNode(Node):
         super().initSockets(inputs, outputs, reset)
         self._init_delta_sockets()
 
-    def getSocketPosition(self, index: int, position: int, num_out_of: int = 1) -> '(x, y)':
+    def getSocketPosition(
+        self, index: int, position: int, num_out_of: int = 1
+    ) -> "(x, y)":
         if index == 0:
             return super().getSocketPosition(index, position, num_out_of)
         return self._get_delta_socket_position(index)
@@ -155,7 +159,12 @@ class StateNode(Node):
         dbox_h = self.grNode.deltabox_height
         node_height = self.grNode.height
         dbox_padding = self.grNode.deltabox_vertical_padding
-        y = node_height + dbox_padding + dbox_h / 2 + (dbox_h + dbox_padding) * (idx-1)
+        y = (
+            node_height
+            + dbox_padding
+            + dbox_h / 2
+            + (dbox_h + dbox_padding) * (idx - 1)
+        )
         return [x, y]
 
     def _init_delta_sockets(self):
@@ -169,9 +178,13 @@ class StateNode(Node):
 
         for i, delta in enumerate(self.deltas):
             socket = DeltaSocket(
-                node=DeltaNode(self, delta), index=i + 1, position=self.output_socket_position,
-                socket_type=SocketType.DELTA_OUTPUT, multi_edges=self.output_multi_edged,
-                count_on_this_node_side=i + 1, is_input=False
+                node=DeltaNode(self, delta),
+                index=i + 1,
+                position=self.output_socket_position,
+                socket_type=SocketType.DELTA_OUTPUT,
+                multi_edges=self.output_multi_edged,
+                count_on_this_node_side=i + 1,
+                is_input=False,
             )
             new_outputs.append(socket)
 
@@ -289,6 +302,12 @@ class StateNode(Node):
         super().onInputChanged(socket)
         if GREEDY_NODE_EVALUATION:
             self.eval()
+
+        # if this is a result of a new edge being dropped onto our input socket,
+        # the previous edge is spec-less.
+        if not self.edge_in.is_event_spec_set:
+            spec = self.scene.main_window.current_node_editor.choose_event()
+            self.edge_in.set_event_spec(spec)
 
     def open_edit_dialog(self, parent: QWidget = None):
         dialog = new_state.NewStateDialog(parent, mode=new_state.Mode.edit, base=self)
@@ -409,7 +428,7 @@ class StateNode(Node):
         try:
             value = data["value"]
             self.content.edit.setText(value)
-            if custom_state := data.get('custom-state'):
+            if custom_state := data.get("custom-state"):
                 self.set_custom_value(parse_state(custom_state))
             return True & res
         except Exception as e:
@@ -426,22 +445,18 @@ class StateNode(Node):
         return outs[0] if outs else None
 
 
-
 def create_new_node(
-        scene: "TheatreScene", view: "GraphicsView", pos: QPoint, name: str = "State",
-        icon: QIcon = None
+    scene: "TheatreScene",
+    view: "GraphicsView",
+    pos: QPoint | QPointF,
+    name: str = "State",
+    icon: QIcon = None,
 ):
-    new_state_node = StateNode(
-        scene,
-        name=name,
-        icon=icon
-    )
-    pos = QPoint(pos)
+    new_state_node = StateNode(scene, name=name, icon=icon)
+    pos = QPoint(int(pos.x()), int(pos.y()))
     # translate up by half the node height so the node appears vertically centered
     #  relative to the mouse click
     pos.setY(pos.y() - new_state_node.grNode.height // 2)
     scene_pos = view.mapToScene(pos)
     new_state_node.setPos(scene_pos.x(), scene_pos.y())
     return new_state_node
-
-

@@ -115,6 +115,10 @@ class TheatreScene(QObject, _Scene):
         return self._main_window.charm_spec
 
     @property
+    def main_window(self) -> "TheatreMainWindow":
+        return self._main_window
+
+    @property
     def context(self):
         return self._main_window.context
 

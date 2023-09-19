@@ -7,6 +7,7 @@ from itertools import count
 from scenario import State
 
 from theatre.logger import logger
+from theatre.trace_tree_widget.scenario_interface import run_scenario
 from theatre.trace_tree_widget.structs import StateNodeOutput
 from theatre.trace_tree_widget.state_bases import Socket
 
@@ -56,7 +57,7 @@ class DeltaNode:
             state=deltaed_state,
             charm_logs=None,
             scenario_logs=None,
-            traceback=None, # todo?
+            traceback=None,  # todo?
         )
 
     def eval(self) -> StateNodeOutput:
@@ -67,5 +68,6 @@ class DeltaNode:
             return state_in
 
         logger.info(f"{'re' if self.value else ''}computing state on {self}")
-        raise NotImplementedError('todo')
-        # return run_scenario(self.scene.context, state_in.state, event_spec.event)
+        return run_scenario(
+            self.scene.context, state_in.state, self.edge_in.event_spec.event
+        )

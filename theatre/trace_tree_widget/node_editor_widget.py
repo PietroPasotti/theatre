@@ -28,14 +28,22 @@ from theatre.dialogs.event_dialog import EventPicker, EventSpec, LIFECYCLE_EVENT
 from theatre.trace_tree_widget.event_edge import EventEdge
 from theatre.trace_tree_widget.library_widget import (
     STATE_SPEC_MIMETYPE,
-    get_sorted_entries, get_spec, StateSpec, SubtreeSpec, SUBTREE_SPEC_MIMETYPE,
-    DYNAMIC_SUBTREE_SPEC_MIMETYPE, DynamicSubtreeSpec, DynamicSubtreeName, DYNAMIC_SUBTREES_TEMPLATES_DIR,
+    get_sorted_entries,
+    get_spec,
+    StateSpec,
+    SubtreeSpec,
+    SUBTREE_SPEC_MIMETYPE,
+    DYNAMIC_SUBTREE_SPEC_MIMETYPE,
+    DynamicSubtreeSpec,
+    DynamicSubtreeName,
+    DYNAMIC_SUBTREES_TEMPLATES_DIR,
 )
 from theatre.dialogs.new_state import NewStateDialog
 from theatre.trace_tree_widget.state_node import (
     StateNode,
     StateContent,
-    create_new_node, )
+    create_new_node,
+)
 from theatre.trace_tree_widget.utils import autolayout
 from theatre.trace_tree_widget.state_bases import GraphicsSocket
 
@@ -62,7 +70,7 @@ def get_new_custom_state(parent=None) -> typing.Optional[Intent[State]]:
 class EdgeDragging(_EdgeDragging):
     drag_edge: EventEdge
 
-    def edgeDragEnd(self, item: 'GraphicsSocket'):
+    def edgeDragEnd(self, item: "GraphicsSocket"):
         # preserve the spec as edgeDragEnd removes the old edge and creates a new one.
         spec = self.drag_edge.event_spec
         super().edgeDragEnd(item)
@@ -88,8 +96,9 @@ class GraphicsView(QDMGraphicsView):
         if mime_data.hasFormat(STATE_SPEC_MIMETYPE):
             is_hovering_bg = scene.getItemAt(event.pos()) is None
             event.setAccepted(is_hovering_bg)
-        elif mime_data.hasFormat(SUBTREE_SPEC_MIMETYPE) or \
-                mime_data.hasFormat(DYNAMIC_SUBTREE_SPEC_MIMETYPE):
+        elif mime_data.hasFormat(SUBTREE_SPEC_MIMETYPE) or mime_data.hasFormat(
+            DYNAMIC_SUBTREE_SPEC_MIMETYPE
+        ):
             is_hovering_node = scene.get_node_at(event.pos())
             event.setAccepted(bool(is_hovering_node))
         else:
@@ -148,7 +157,7 @@ class NodeEditorWidget(_NodeEditorWidget):
         super().__init__(parent)
         self.update_title()
         self.chain_on_new_node = True
-
+        self._last_added_node: StateNode | None = None
         self._create_new_state_actions()
 
         self.scene.addHasBeenModifiedListener(self.update_title)
@@ -187,7 +196,7 @@ class NodeEditorWidget(_NodeEditorWidget):
             self,
             statusTip="Create a new custom state.",
             triggered=self.create_new_custom_state,
-            icon=get_icon("edit_square")
+            icon=get_icon("edit_square"),
         )
 
     def _create_new_node_at(self, pos: QPoint):
@@ -198,6 +207,11 @@ class NodeEditorWidget(_NodeEditorWidget):
         - link old node to new node.
         """
         event_spec = self.choose_event()
+
+        if not event_spec:
+            # aborted
+            return
+
         scene: "TheatreScene" = self.scene
 
         new_state_node = create_new_node(scene, self.view, pos)
@@ -225,10 +239,8 @@ class NodeEditorWidget(_NodeEditorWidget):
             dragging.edgeDragEnd(None)
 
     def choose_event(self) -> typing.Optional[EventSpec]:
-        event_picker = EventPicker(
-            charm_spec=self._charm_spec,
-            parent=self
-        )
+        charm_spec = self._main_window.charm_spec
+        event_picker = EventPicker(charm_spec=charm_spec, parent=self)
         event_picker.exec()
 
         if not event_picker.confirmed:
@@ -279,9 +291,11 @@ class NodeEditorWidget(_NodeEditorWidget):
             callback(self, event)
 
     def on_drag_enter(self, event):
-        if event.mimeData().hasFormat(STATE_SPEC_MIMETYPE) or \
-                event.mimeData().hasFormat(SUBTREE_SPEC_MIMETYPE) or \
-                event.mimeData().hasFormat(DYNAMIC_SUBTREE_SPEC_MIMETYPE):
+        if (
+            event.mimeData().hasFormat(STATE_SPEC_MIMETYPE)
+            or event.mimeData().hasFormat(SUBTREE_SPEC_MIMETYPE)
+            or event.mimeData().hasFormat(DYNAMIC_SUBTREE_SPEC_MIMETYPE)
+        ):
             event.acceptProposedAction()
         else:
             logger.info(f"denied drag enter evt on {self}")
@@ -295,9 +309,9 @@ class NodeEditorWidget(_NodeEditorWidget):
         # TODO: if we're dropping something on a Delta...
 
         for mimetype, method in (
-                (STATE_SPEC_MIMETYPE, self._drop_node),
-                (SUBTREE_SPEC_MIMETYPE, self._drop_subtree),
-                (DYNAMIC_SUBTREE_SPEC_MIMETYPE, self._drop_dynamic_subtree),
+            (STATE_SPEC_MIMETYPE, self._drop_node),
+            (SUBTREE_SPEC_MIMETYPE, self._drop_subtree),
+            (DYNAMIC_SUBTREE_SPEC_MIMETYPE, self._drop_dynamic_subtree),
         ):
             if mime_data.hasFormat(mimetype):
                 event_data = mime_data.data(mimetype)
@@ -314,15 +328,10 @@ class NodeEditorWidget(_NodeEditorWidget):
 
     def _drop_node(self, spec: StateSpec, pos: QPoint):
         node = create_new_node(
-            scene=self.scene, view=self.view,
-            pos=pos,
-            name=spec.name,
-            icon=spec.icon
+            scene=self.scene, view=self.view, pos=pos, name=spec.name, icon=spec.icon
         )
         node.set_custom_value(spec.state)
-        self.scene.history.storeHistory(
-            "Created node %s" % node.__class__.__name__
-        )
+        self.scene.history.storeHistory("Created node %s" % node.__class__.__name__)
 
     def _drop_subtree(self, spec: SubtreeSpec, pos: QPoint):
         start = self.scene.get_node_at(pos)
@@ -373,26 +382,27 @@ class NodeEditorWidget(_NodeEditorWidget):
 
         context_menu = QMenu(self)
         mark_dirty_action = context_menu.addAction(
-            get_icon("recycling"), "Mark Dirty", selected.markDirty)
+            get_icon("recycling"), "Mark Dirty", selected.markDirty
+        )
         evaluate_action = context_menu.addAction(
             get_icon("start"), "Evaluate", selected.eval
         )
-        force_reeval = context_menu.addAction(
-            get_icon("start"), "Force-reevaluate")
-        context_menu.addAction(
-            get_icon("delete"), "Delete node", selected.remove)
+        force_reeval = context_menu.addAction(get_icon("start"), "Force-reevaluate")
+        context_menu.addAction(get_icon("delete"), "Delete node", selected.remove)
         edit_action = context_menu.addAction(get_icon("edit"), "Edit")
         context_menu.addAction(
-            get_icon("edit_delta"), "Deltas",
-            lambda: selected.open_edit_deltas_dialog(self)
+            get_icon("edit_delta"),
+            "Deltas",
+            lambda: selected.open_edit_deltas_dialog(self),
         )
         branch_submenu = context_menu.addMenu(get_icon("arrow_split"), "Branch")
         branch_actions = []
         subtree: SubtreeSpec
         for subtree in get_sorted_entries((SubtreeSpec, DynamicSubtreeSpec)):
             branch_action = branch_submenu.addAction(
-                subtree.icon, subtree.name,
-                partial(self._on_branch_action, selected, subtree)
+                subtree.icon,
+                subtree.name,
+                partial(self._on_branch_action, selected, subtree),
             )
             branch_actions.append(branch_action)
 
@@ -418,7 +428,7 @@ class NodeEditorWidget(_NodeEditorWidget):
             selected.open_edit_dialog(self)
             self.state_node_changed.emit(selected)
         else:
-            logger.info(f'chosen action: {action}')
+            logger.info(f"chosen action: {action}")
             # other actions should handle themselves
 
     def _on_edge_context_menu(self, event, edge: "EventEdge"):
@@ -454,12 +464,11 @@ class NodeEditorWidget(_NodeEditorWidget):
 
     def _new_node(self, pos: QPoint = None) -> StateNode:
         # fixme: this is the topleft corner, somehow
-        pos = pos or self.mapToGlobal(self.view.scene().sceneRect().center().toPoint())
-        new_node = create_new_node(scene=self.scene,
-                                   view=self.view,
-                                   pos=pos)
+        pos = pos or self.view.viewport().rect().center()
+        new_node = create_new_node(scene=self.scene, view=self.view, pos=pos)
         self.scene.history.storeHistory(f"Created {new_node}")
         self._finalize_node(new_node)
+        self._last_added_node = new_node
         return new_node
 
     def _on_background_context_menu(self, event):
@@ -470,12 +479,16 @@ class NodeEditorWidget(_NodeEditorWidget):
             if isinstance(state, StateSpec):
                 menu.addAction(self.state_actions[state.name])
 
-        action = menu.exec_(self.mapToGlobal(event.pos()))
-        logger.info(f'triggered {action}')
+        pos = event.pos()
+        action = menu.exec_(self.mapToGlobal(pos))
+        logger.info(f"triggered {action}")
 
         if action not in [self._new_state_action, None]:
             # only action that will handle itself by calling self.create_new_custom_state
-            self._new_node(pos=event.pos())
+            self._new_node(pos=pos)
+        if action is self._new_state_action and self._last_added_node:
+            pos = self.view.mapToScene(pos)
+            self._last_added_node.setPos(pos.x(), pos.y())
 
     def create_new_custom_state(self):
         state_intent = get_new_custom_state(self)
@@ -488,7 +501,9 @@ class NodeEditorWidget(_NodeEditorWidget):
         node.set_custom_value(state_intent.output)
         self.state_node_created.emit(state_intent)
 
-    def _on_branch_action(self, start: StateNode, data: DynamicSubtreeSpec | SubtreeSpec):
+    def _on_branch_action(
+        self, start: StateNode, data: DynamicSubtreeSpec | SubtreeSpec
+    ):
         if isinstance(data, SubtreeSpec):
             return self._paste_subtree(start, data.graph)
         return self._paste_dynamic_subtree(start, data)
@@ -512,13 +527,13 @@ class NodeEditorWidget(_NodeEditorWidget):
                 self.scene,
                 start.output_socket,
                 new_node.input_socket,
-                event_spec=EventSpec(Event(event), {})
+                event_spec=EventSpec(Event(event), {}),
             )
 
-        autolayout(start, align='center')
+        autolayout(start, align="center")
 
     def _choose_relation(self, node: StateNode) -> Relation:
-        return Relation('foo', relation_id=0)
+        return Relation("foo", relation_id=0)
 
     def _extend_with_relation_lifecycle(self, start: StateNode):
         """Generate a subtree for a standard relation lifecycle."""
@@ -528,7 +543,7 @@ class NodeEditorWidget(_NodeEditorWidget):
             logger.error("no relation name chosen; aborting")
             return
 
-        filename = DYNAMIC_SUBTREES_TEMPLATES_DIR / 'relation_lifecycle.theatre'
+        filename = DYNAMIC_SUBTREES_TEMPLATES_DIR / "relation_lifecycle.theatre"
         text = filename.read_text().replace("{relation_name}", relation.endpoint)
         obj = json.loads(text)
         new_nodes = self._paste_subtree(start, obj)
@@ -540,14 +555,18 @@ class NodeEditorWidget(_NodeEditorWidget):
             # silently update
             edge_in.set_event_spec(event_spec)
 
-    def _paste_subtree(self, start: StateNode, data: SerializedScene) -> typing.List[StateNode]:
+    def _paste_subtree(
+        self, start: StateNode, data: SerializedScene
+    ) -> typing.List[StateNode]:
         created_nodes = self.scene.clipboard.deserializeFromClipboard(data)
-        roots: typing.List[StateNode] = list(filter(lambda node: node.is_root, created_nodes))
+        roots: typing.List[StateNode] = list(
+            filter(lambda node: node.is_root, created_nodes)
+        )
 
         if len(roots) == 1:
             root = roots[0]
         else:
-            raise RuntimeError(f'expected a single root: got {len(roots)}')
+            raise RuntimeError(f"expected a single root: got {len(roots)}")
 
         # swap out loaded root for selected node
         edge = root.edge_out
@@ -561,7 +580,7 @@ class NodeEditorWidget(_NodeEditorWidget):
             start.output_socket,
             next_node.input_socket,
             edge.edge_type,
-            event_spec=edge.event_spec
+            event_spec=edge.event_spec,
         )
 
         autolayout(start)

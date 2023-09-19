@@ -1,0 +1,64 @@
+[build-system]
+requires = [
+    "setuptools >= 35.0.2",
+    "setuptools_scm >= 2.0.0, <3"
+]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "theatre"
+
+version = "0.1"
+
+authors = [
+    { name = "Pietro Pasotti", email = "pietro.pasotti@canonical.com" }
+]
+description = "Experimental Scenario-driven charm development tool."
+license.text = "Apache-2.0"
+keywords = ["juju", "dev"]
+
+dependencies = [
+    "qtpy==2.3.1",
+    "PyQt5==5.15.9",
+    "ops-scenario>=5.0",
+    "nodeeditor==0.9.13",
+    "typer"
+]
+readme = "README.md"
+requires-python = ">=3.10"
+
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "License :: OSI Approved :: Apache Software License",
+    'Framework :: Pytest',
+    'Intended Audience :: Developers',
+    'Topic :: Software Development :: Quality Assurance',
+    'Topic :: Software Development :: Testing',
+    'Topic :: Utilities',
+]
+
+[project.urls]
+"Homepage" = "https://github.com/PietroPasotti/theatre"
+"Bug Tracker" = "https://github.com/PietroPasotti/theatre/issues"
+
+[project.scripts]
+theatre = "main:main"
+
+[tool.setuptools.package-dir]
+theatre = "theatre"
+
+
+[tool.black]
+include = '\.pyi?$'
+
+
+[tool.flake8]
+dictionaries = ["en_US","python","technical"]
+max-line-length = 100
+ignore = ["SC100", "SC200", "B008"]
+
+[tool.isort]
+profile = "black"
+
+[bdist_wheel]
+universal = 1

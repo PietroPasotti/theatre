@@ -2,8 +2,9 @@
 
 # TODO: move to scenario
 
-from scenario.state import *
+import typing
 
+from scenario.state import Action, Container, Event, Relation, Secret, State, Model, Network, DeferredEvent, StoredState
 from scenario.state import _EntityStatus
 
 
@@ -33,11 +34,11 @@ def parse_secret(obj: dict) -> Secret:
 
 def parse_event(obj: dict) -> Event:
     return Event(
+        name=_convert_if_not_none(obj, 'name'),
         action=_convert_if_not_none(obj, 'action', parse_action),
         args=_convert_if_not_none(obj, 'args', lambda x: x),
         container=_convert_if_not_none(obj, 'container', parse_container),
         kwargs=_convert_if_not_none(obj, 'kwargs', lambda x: x, {}),
-        name=_convert_if_not_none(obj, 'name'),
         relation=_convert_if_not_none(obj, 'relation', parse_relation),
         relation_remote_unit_id=_convert_if_not_none(obj, 'relation_remote_unit_id'),
         secret=_convert_if_not_none(obj, 'secret', parse_secret),
