@@ -113,7 +113,8 @@ def load_module(path: Path, add_to_path: typing.List[Path] = None) -> types.Modu
 
     # so we can import without tricks
     old_path = sys.path.copy()
-    sys.path.extend([str(path.parent)] + (add_to_path or []))
+    extra_paths = list(map(str, add_to_path or []))
+    sys.path.extend([str(path.parent)] + extra_paths)
 
     # strip .py
     module_name = str(path.with_suffix("").name)

@@ -42,7 +42,7 @@ classifiers = [
 "Bug Tracker" = "https://github.com/PietroPasotti/theatre/issues"
 
 [project.scripts]
-theatre = "main:main"
+theatre = "theatre.main:main"
 
 [tool.setuptools.package-dir]
 theatre = "theatre"
