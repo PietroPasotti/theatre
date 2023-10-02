@@ -24,12 +24,12 @@ from qtpy.QtWidgets import (
 
 from theatre import config, __version__
 from theatre.charm_repo_tools import CharmRepo, load_charm_context
-from theatre.config import SCENE_FILE_TYPE
+from theatre.config import SCENE_FILE_TYPE, SCENE_EXTENSION
 from theatre.dialogs.context_loader import (
     CharmCtxLoaderDialog,
 )
 from theatre.helpers import get_icon, toggle_visible, show_error_dialog
-from theatre.logger import logger
+from theatre.logger import logger as theatre_logger
 from theatre.trace_inspector import TraceInspectorWidget
 from theatre.trace_tree_widget.library_widget import Library
 from theatre.trace_tree_widget.node_editor_widget import NodeEditorWidget
@@ -39,6 +39,8 @@ if typing.TYPE_CHECKING:
     from scenario.state import _CharmSpec
     from scenario import Context
 
+
+logger = theatre_logger.getChild(__file__)
 
 # os.environ["QT_QPA_PLATFORM"] = "offscreen"
 TESTING = False
@@ -317,17 +319,16 @@ class TheatreMainWindow(NodeEditorWindow):
             SCENE_FILE_TYPE,
         )
 
-        extension = self.SCENE_EXTENSION
-        if not fname.endswith(extension):
-            fname += extension
-            logger.warn(
-                f'automatically adding "{extension}": '
-                f"saving to {Path(fname).absolute()}"
-            )
-
         if not fname:
+            print(f"no filename selected. Aborting save.")
             return False
 
+        if not fname.endswith(SCENE_EXTENSION):
+            fname += SCENE_EXTENSION
+            logger.warn(
+                f'automatically adding "{SCENE_EXTENSION}": '
+                f"saving to {Path(fname).absolute()}"
+            )
         self.onBeforeSaveAs(editor, fname)
         editor.fileSave(fname)
         self.statusBar().showMessage(f"Successfully saved as {fname}", 5000)
@@ -385,6 +386,11 @@ class TheatreMainWindow(NodeEditorWindow):
         # load ctx
         ctx = repo.load_context()
         self._update_charm_context(ctx)
+
+        # todo: get all containers filesystem from Context, make a copy.
+        #  that is going to be the 'bare' filesystem template for this charm.
+        #  call git init in there.
+        #  every statenode you create will correspond to a branch in the git tree.
 
         # select a scene to open
         previous_scene = repo.current_scene
@@ -586,45 +592,3 @@ class TheatreMainWindow(NodeEditorWindow):
         settings = QSettings(self.name_company, self.name_product)
         previous_open = [tab.filename for tab in self.mdiArea.subWindowList()]
         settings.setValue("open", previous_open)
-
-
-def show_main_window(cwd: Path = None):
-    app = QApplication([])
-    app.setStyle("Fusion")
-
-    window = TheatreMainWindow()
-    if window.SHOW_MAXIMIZED:
-        window.showMaximized()
-    else:
-        window.show()
-
-    if cwd:
-        repo = CharmRepo(cwd)
-
-        if repo.is_valid:
-            logger.info("charm repo root detected")
-            if repo.is_initialized:
-                logger.info(".theatre found, resuming...")
-                window.resume_from_charm_repo(repo)
-
-            else:
-                logger.info("no .theatre found, attempting init...")
-                repo.initialize()
-
-        if repo.current_scene:
-            window.open_if_not_already_open(repo.current_scene)
-    else:
-        dummy_scene = Path("~/.local/share/theatre/scenes/myscene.scene").expanduser()
-        window.open_if_not_already_open(dummy_scene)
-
-    sys.exit(app.exec_())
-
-
-def display(path: typing.Optional[Path] = None):
-    """Open the charm at this path in Theatre."""
-    path = Path(path or os.getcwd())
-    show_main_window(path)
-
-
-if __name__ == "__main__":
-    show_main_window()
