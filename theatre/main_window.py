@@ -397,6 +397,11 @@ class TheatreMainWindow(NodeEditorWindow):
         #  call git init in there.
         #  every statenode you create will correspond to a branch in the git tree.
 
+        # todo: get all containers filesystem from Context, make a copy.
+        #  that is going to be the 'bare' filesystem template for this charm.
+        #  call git init in there.
+        #  every statenode you create will correspond to a branch in the git tree.
+
         # select a scene to open
         previous_scene = repo.current_scene
         if previous_scene:
