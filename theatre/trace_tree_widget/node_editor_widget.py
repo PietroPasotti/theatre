@@ -1,8 +1,10 @@
 # Copyright 2022 Canonical Ltd.
 # See LICENSE file for licensing details.
 import json
+import os
 import typing
 from functools import partial
+from pathlib import Path
 
 from PyQt5.QtCore import QMimeData
 from qtpy.QtGui import QDragMoveEvent, QWheelEvent
@@ -149,6 +151,11 @@ class GraphicsView(QDMGraphicsView):
             sb = self.verticalScrollBar()
             sb.setValue(sb.value() - event.angleDelta().y())
             event.accept()
+
+
+def open_vfs_in_external_editor(root_vfs_tempdir: Path):
+    logger.info(f"opening {root_vfs_tempdir} in external navigator...")
+    os.system(f"xdg-open {root_vfs_tempdir}")
 
 
 class NodeEditorWidget(_NodeEditorWidget):

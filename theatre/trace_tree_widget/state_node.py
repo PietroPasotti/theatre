@@ -26,7 +26,7 @@ from scenario.state import State
 
 from theatre.charm_repo_tools import CharmRepo
 from theatre.helpers import get_icon
-from theatre.logger import logger
+from theatre.logger import logger as theatre_logger
 from theatre.scenario_json import parse_state
 from theatre.dialogs import new_state, edit_delta
 from theatre.trace_tree_widget.delta import DeltaSocket, Delta, DeltaNode
@@ -38,6 +38,8 @@ from theatre.trace_tree_widget.structs import StateNodeOutput
 if typing.TYPE_CHECKING:
     from theatre.theatre_scene import TheatreScene
     from theatre.trace_tree_widget.node_editor_widget import GraphicsView
+
+logger = theatre_logger.getChild("state_node")
 
 ALLOW_INPUTS_ON_CUSTOM_NODES = False
 """Allow custom nodes to have inputs; i.e. if you add an incoming edge, the custom node 
@@ -292,7 +294,7 @@ class StateNode(Node):
         self._is_null = False
 
         if self.is_root:
-            parent_output = scenario.State()
+            parent_output = StateNodeOutput(scenario.State())
         else:
             parent_output = self._get_parent_output()
 
@@ -373,7 +375,8 @@ class StateNode(Node):
 
     def _set_error_value(self, e: Exception):
         self.grNode.setToolTip(str(e))
-        logger.error(e)
+        logger.error(e, exc_info=True)
+
         value = StateNodeOutput(exception=e)
 
         self.value = value
@@ -470,6 +473,9 @@ class StateNode(Node):
 def add_simulated_fs_from_repo(
     state_in_ori: State, repo: "CharmRepo", situation: str = "default", root_vfs=None
 ) -> State:
+    if not repo:
+        return state_in_ori
+
     vfs_roots = repo.mounts()[situation]
     # tmp_root = Path(f'/tmp/theatre/vfs/{situation}')
     # tmp_root.mkdir(exist_ok=True, parents=True)

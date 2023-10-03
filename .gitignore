@@ -26,3 +26,5 @@ wheels/
 .installed.cfg
 *.egg
 /venv/
+
+local_exec.py

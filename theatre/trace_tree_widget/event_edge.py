@@ -15,7 +15,7 @@ from nodeeditor.node_graphics_edge import QDMGraphicsEdge
 from qtpy.QtGui import QIcon
 
 from theatre.helpers import get_icon, get_color
-from theatre.logger import logger
+from theatre.logger import logger as theatre_logger
 from theatre.scenario_json import parse_event
 from theatre.dialogs.event_dialog import EventSpec
 
@@ -25,12 +25,15 @@ if typing.TYPE_CHECKING:
     from theatre.trace_tree_widget.state_node import StateNode
 
 
+logger = theatre_logger.getChild("event_edge")
+
+
 class GraphicsEdge(QDMGraphicsEdge):
     edge: "EventEdge"
 
-    def __init__(self, edge: 'EventEdge', parent: QWidget = None):
+    def __init__(self, edge: "EventEdge", parent: QWidget = None):
         super().__init__(edge, parent)
-        self._label_color = get_color('cyan1')
+        self._label_color = get_color("cyan1")
 
     def paint(self, painter: QPainter, QStyleOptionGraphicsItem, widget=None):
         super().paint(painter, QStyleOptionGraphicsItem, widget)
@@ -44,7 +47,7 @@ class GraphicsEdge(QDMGraphicsEdge):
         # midpoint = QPointF(((sx+dx)/2), ((sy+dy)/2))
 
         path: QPainterPath = self.path()
-        midpoint = path.pointAtPercent(.5)
+        midpoint = path.pointAtPercent(0.5)
 
         # align to center
         midpoint.setX(midpoint.x() - 16)
@@ -63,12 +66,12 @@ class EventEdge(_Edge):
     """Edge representing an Event."""
 
     def __init__(
-            self,
-            scene: "TheatreScene",
-            start_socket: "Socket" = None,
-            end_socket: "Socket" = None,
-            edge_type=EDGE_TYPE_DIRECT,
-            event_spec: typing.Optional[EventSpec] = None,
+        self,
+        scene: "TheatreScene",
+        start_socket: "Socket" = None,
+        end_socket: "Socket" = None,
+        edge_type=EDGE_TYPE_DIRECT,
+        event_spec: typing.Optional[EventSpec] = None,
     ):
         super().__init__(scene, start_socket, end_socket, edge_type)
         self._event_spec: typing.Optional[EventSpec] = None
@@ -119,9 +122,11 @@ class EventEdge(_Edge):
         return get_icon("arrow_circle_right")
 
     def __repr__(self):
-        return f"<{self.start_node if self.start_socket else '?'} --> " \
-               f"{self._event_spec} --> " \
-               f"{self.end_node if self.end_socket else '?'}>"
+        return (
+            f"<{self.start_node if self.start_socket else '?'} --> "
+            f"{self._event_spec} --> "
+            f"{self.end_node if self.end_socket else '?'}>"
+        )
 
     @property
     def start_node(self) -> "StateNode":
@@ -149,7 +154,7 @@ class EventEdge(_Edge):
         if not self.is_event_spec_set:
             return get_color("invalid")
         event = self.event_spec.event
-        if event.name == 'update-status':
+        if event.name == "update-status":
             return get_color("update-status")
         if event._is_relation_event:
             return get_color("relation event")
@@ -175,24 +180,26 @@ class EventEdge(_Edge):
 
     def serialize(self):
         if not self.end_socket or not self.start_socket:
-            raise RuntimeError(f'cannot serialize {self}! missing socket')
+            raise RuntimeError(f"cannot serialize {self}! missing socket")
         if not self._event_spec:
-            logger.warning('should not quite serialize: event edge '
-                           'underspecified, missing event spec')
+            logger.warning(
+                "should not quite serialize: event edge "
+                "underspecified, missing event spec"
+            )
 
         out = super().serialize()
         out["event_spec"] = asdict(self._event_spec) if self._event_spec else None
         return out
 
     def deserialize(
-            self, data: dict, hashmap: dict = {}, restore_id: bool = True, *args, **kwargs
+        self, data: dict, hashmap: dict = {}, restore_id: bool = True, *args, **kwargs
     ) -> bool:
         evt_spec = data.get("event_spec", None)
         if evt_spec:
             # TODO: Relation Events and the like will need a reference to
             #  the Relation object which is stored in the parent state!
-            event = parse_event(evt_spec['event'])
-            self.set_event_spec(EventSpec(event, evt_spec['env']))
+            event = parse_event(evt_spec["event"])
+            self.set_event_spec(EventSpec(event, evt_spec["env"]))
         return super().deserialize(data, hashmap, restore_id, *args, **kwargs)
 
 

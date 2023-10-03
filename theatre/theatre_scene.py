@@ -12,7 +12,7 @@ from qtpy.QtCore import Signal
 from qtpy.QtWidgets import QGraphicsItem
 from qtpy.QtWidgets import QGraphicsProxyWidget
 
-from theatre.logger import logger
+from theatre.logger import logger as theatre_logger
 from theatre.trace_tree_widget.event_edge import EventEdge
 from theatre.trace_tree_widget.state_node import (
     StateNode,
@@ -27,6 +27,8 @@ from theatre.trace_tree_widget.state_bases import (
 if typing.TYPE_CHECKING:
     from theatre.main_window import TheatreMainWindow
     from theatre.charm_repo_tools import CharmRepo
+
+logger = theatre_logger.getChild("scene")
 
 SerializedScene = dict  # TODO
 

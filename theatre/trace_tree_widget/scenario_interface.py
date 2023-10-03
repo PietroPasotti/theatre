@@ -45,7 +45,7 @@ def close_event(event: Event, state: State):
                 container=state.get_container(event.name[: -len("-pebble-ready")])
             )
 
-        if event._is_relation_event:
+        elif event._is_relation_event:
             if event.relation:
                 return event
 
@@ -58,6 +58,8 @@ def close_event(event: Event, state: State):
             f"failure closing {event}: expect scenario inconsistency errors."
             f"Please fill the missing metadata manually."
         )
+
+    return event
 
 
 def run_scenario(context: scenario.Context, state: State, event: Event):

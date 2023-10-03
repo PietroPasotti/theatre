@@ -15,8 +15,10 @@ from qtpy.QtSvg import QSvgRenderer
 from qtpy.QtWidgets import QWidget, QMessageBox
 
 from theatre.config import RESOURCES_DIR
-from theatre.logger import logger
+from theatre.logger import logger as theatre_logger
 from theatre.resources.x11_colors import X11_COLORS
+
+logger = theatre_logger.getChild("helpers")
 
 ColorType = typing.Union[str, typing.Tuple[int, int, int]]
 DEFAULT_ICON_PIXMAP_RESOLUTION = 100

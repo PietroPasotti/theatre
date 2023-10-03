@@ -3,7 +3,9 @@ Theatre
 
 Theatre is a [scenario](https://github.com/canonical/ops-scenario)-based charm state-transition driver.
 
-This is an experimental tool under development.
+![screenshot.png](theatre%2Fresources%2Fbranding%2Fscreenshot.png)
+
+This is an experimental tool under heavy development.
 
 We plan to be able to use it to:
 - aid charm development
@@ -16,4 +18,4 @@ Development
 ===========
 
 - Tested with python 3.11
-- Scenario 4.0 (dev branch)
+- Scenario 5.2
