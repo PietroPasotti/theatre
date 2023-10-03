@@ -1,7 +1,30 @@
-import logging
+"""Theatre loader for this charm repository.
+
+This file should expose a ``charm_context`` callable that returns a ``scenario.Context``.
+
+A barebone example for your typical charm repo will look like:
+
+>>> from scenario import Context
+>>> from charm import MyCharm
+>>>
+>>> def charm_context():
+>>>     return Context(charm_type=MyCharm)
+
+If you need to mock, patch, etc... to make your charm runnable by Scenario, this is where
+you can do so.
+The context you return from ``charm_context`` should be runnable as_is.
+
+>>> from scenario import Context
+>>> from charm import MyCharm
+>>>
+>>> def charm_context():
+>>>     MyCharm._make_call_to_kubernetes_api = lambda: "42"
+>>>     return Context(charm_type=MyCharm)
+"""
 
 import ops
-from scenario import Context, State
+from scenario import Context
+
 
 # TODO from charm import MyCharmType
 class DummyCharm(ops.CharmBase):

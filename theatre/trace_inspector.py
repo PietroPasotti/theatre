@@ -2,11 +2,12 @@
 # See LICENSE file for licensing details.
 import dataclasses
 import typing
+import traceback
 
 import scenario
 import yaml
-from PyQt5.QtCore import Qt
-from PyQt5.QtWidgets import QTabWidget, QTextEdit
+from qtpy.QtCore import Qt
+from qtpy.QtWidgets import QTabWidget, QTextEdit
 from qtpy.QtCore import Signal, QItemSelection
 from qtpy.QtGui import QBrush
 from qtpy.QtGui import QStandardItemModel, QStandardItem
@@ -16,7 +17,7 @@ from qtpy.QtWidgets import QTreeView
 
 from theatre.logger import logger
 from theatre.helpers import get_icon, get_color, toggle_visible
-from theatre.trace_tree_widget.state_node import StateNode
+from theatre.trace_tree_widget.state_node import StateNode, ParentEvaluationFailed
 from theatre.trace_tree_widget.structs import StateNodeOutput
 
 if typing.TYPE_CHECKING:
@@ -125,29 +126,43 @@ class TextView(QTextEdit):
         if self._state_node is None:
             raise StateNodeUnsetError()
         out = self._state_node.eval()
-        if not out.state:
-            raise NoStateError()
         return out
 
     def toggle(self):
         return toggle_visible(self)
 
 
+def _format_error_message(exception: typing.Optional[Exception]):
+    if not exception:
+        return "<no logs>"
+    if isinstance(exception, ParentEvaluationFailed):
+        return (
+            "<no logs>: state evaluation failed because some parent node is broken. "
+            f"Fix the parents of this node and try again.\n ({type(exception).__name__})"
+        )
+    return f"<no logs>: state evaluation failed with error\n {type(exception).__name__}"
+
+
 class ScenarioLogsView(TextView):
     TOOLTIP = "scenario.Context.run() logging output"
 
     def generate_contents(self):
-        return self.node_output.scenario_logs or "<no logs>"
+        out = self.node_output
+        scenario_logs = out.scenario_logs
+        if scenario_logs:
+            return scenario_logs
+        return _format_error_message(out.exception)
 
 
 class CharmLogsView(TextView):
     TOOLTIP = "charm execution juju-log output"
 
     def generate_contents(self):
-        juju_log = self.node_output.charm_logs
-        if not juju_log:
-            return "<no logs>"
-        return "\n".join(" ".join(line) for line in juju_log)
+        out = self.node_output
+        juju_log = out.charm_logs
+        if juju_log:
+            return "\n".join(" ".join(line) for line in juju_log)
+        return _format_error_message(out.exception)
 
 
 class LogsView(QSplitter):
@@ -176,7 +191,23 @@ class LogsView(QSplitter):
 
 class RawStateView(TextView):
     def generate_contents(self):
-        return yaml.safe_dump(dataclasses.asdict(self.node_output.state))
+        if not self.node_output.state:
+            raise NoStateError()
+        state_dict = dataclasses.asdict(self.node_output.state)
+
+        # yaml doesn't like paths nor pebble layers
+        for container in state_dict.get("containers", {}):
+            for mount in container.get("mounts", {}).values():
+                mount["src"] = str(mount["src"])
+                mount["location"] = str(mount["location"])
+            container["layers"] = {
+                name: str(value) for name, value in container["layers"].items()
+            }
+            container["service_status"] = {
+                name: str(value) for name, value in container["service_status"].items()
+            }
+
+        return yaml.safe_dump(state_dict)
 
 
 class StateView(QTreeView):
@@ -196,7 +227,7 @@ class StateView(QTreeView):
 
         if not state_node.value.state:
             # state still unavailable: this means the computation has failed.
-            status_item = QStandardItem(get_icon("error"), "evaluation failed")
+            status_item = QStandardItem(get_icon("error"), "state evaluation failed")
             model.appendRow(status_item)
             return
 

@@ -12,7 +12,10 @@ from theatre.trace_tree_widget.structs import StateNodeOutput
 from theatre.trace_tree_widget.state_bases import Socket
 
 if typing.TYPE_CHECKING:
-    from theatre.trace_tree_widget.state_node import StateNode
+    from theatre.trace_tree_widget.state_node import (
+        StateNode,
+        add_simulated_fs_from_repo,
+    )
 
 NEWDELTACTR = count()
 
@@ -40,7 +43,7 @@ class DeltaNode:
         # proxy all node calls
         return getattr(self._base_node, item)
 
-    def _get_input_state(self) -> StateNodeOutput:
+    def _get_parent_output(self) -> StateNodeOutput:
         """Get the output of the previous node."""
         # todo: cache input
         base_node_output = self._base_node.eval()
@@ -53,21 +56,17 @@ class DeltaNode:
                 f"instead of scenario.State."
             )
 
-        return StateNodeOutput(
-            state=deltaed_state,
-            charm_logs=None,
-            scenario_logs=None,
-            traceback=None,  # todo?
-        )
+        return StateNodeOutput(state=deltaed_state)
 
     def eval(self) -> StateNodeOutput:
-        state_in = self._get_input_state()
+        parent_output = self._get_parent_output()
         edge_in = self.edge_in
         if not edge_in:
             # root node! return unmodified state
-            return state_in
+            return parent_output
 
         logger.info(f"{'re' if self.value else ''}computing state on {self}")
+        # the parent node is deltae'd
         return run_scenario(
-            self.scene.context, state_in.state, self.edge_in.event_spec.event
+            self.scene.context, parent_output.state, self.edge_in.event_spec.event
         )

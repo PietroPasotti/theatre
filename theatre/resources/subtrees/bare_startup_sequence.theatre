@@ -125,7 +125,7 @@
             "end": 140079519169744,
             "event_spec": {
                 "event": {
-                    "name": "start",
+                    "path": "start",
                     "args": [],
                     "kwargs": {},
                     "relation": null,
@@ -144,7 +144,7 @@
             "end": 140079523387152,
             "event_spec": {
                 "event": {
-                    "name": "install",
+                    "path": "install",
                     "args": [],
                     "kwargs": {},
                     "relation": null,
@@ -163,7 +163,7 @@
             "end": 140079519114064,
             "event_spec": {
                 "event": {
-                    "name": "config_changed",
+                    "path": "config_changed",
                     "args": [],
                     "kwargs": {},
                     "relation": null,

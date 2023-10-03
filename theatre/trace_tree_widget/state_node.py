@@ -5,6 +5,7 @@ import typing
 from dataclasses import asdict
 from itertools import count
 from pathlib import Path
+from shutil import copytree
 
 import scenario
 from PyQt5.QtCore import QPointF
@@ -23,6 +24,7 @@ from qtpy.QtWidgets import QLineEdit
 from qtpy.QtWidgets import QVBoxLayout, QWidget
 from scenario.state import State
 
+from theatre.charm_repo_tools import CharmRepo
 from theatre.helpers import get_icon
 from theatre.logger import logger
 from theatre.scenario_json import parse_state
@@ -88,6 +90,10 @@ class StateContent(QDMNodeContentWidget):
 class ParentEvaluationFailed(RuntimeError):
     """Raised by StateNode._evaluate if the parent node's evaluation fails."""
 
+    def __init__(self, output: "StateNodeOutput", *args: object) -> None:
+        super().__init__(*args)
+        self.output = output
+
 
 class SocketType:
     INPUT = 1
@@ -120,17 +126,15 @@ class StateNode(Node):
         self._deltas_source: str | None = None
 
         # deltas parsed from the source.
-        self.deltas: typing.List[Delta] = [
-            # Delta(lambda x: x, f"identity {next(NEWDELTACTR)}"),
-            # Delta(lambda x: x.replace(leader=True), f"leadermaker {next(NEWDELTACTR)}"),
-            # Delta(lambda x: x.replace(leader=False), f"leaderunmaker {next(NEWDELTACTR)}")
-        ]
+        self.deltas: typing.List[Delta] = []
 
         self._is_custom = False
         super().__init__(scene, name, [SocketType.INPUT], [SocketType.OUTPUT])
         self.icon: QIcon = icon or self._get_icon()
         self.value: typing.Optional[StateNodeOutput] = None
         self.scene = typing.cast("TheatreScene", self.scene)
+        self.root_vfs_tempdir = tempfile.mkdtemp()
+
         self.markDirty()
         self.grNode.title_item.setParent(self.content)
         self._update_title()
@@ -265,22 +269,22 @@ class StateNode(Node):
     def _update_title(self):
         self.grNode.title = self.get_title()
 
-    def _get_input_state(self) -> StateNodeOutput:
+    def _get_parent_output(self) -> StateNodeOutput:
         """Get the output of the previous node."""
         edge_in = self.edge_in
         parent = edge_in.start_node
 
-        state_in = parent.eval()
+        parent_output = parent.eval()
 
-        if not isinstance(state_in, StateNodeOutput):
+        if not isinstance(parent_output, StateNodeOutput):
             raise RuntimeError(
-                f"parent {parent} evaluation yielded something bad: {state_in}"
+                f"parent {parent} evaluation yielded something bad: {parent_output}"
             )
-        if not state_in.state:
+        if not parent_output.state:
             raise ParentEvaluationFailed(
-                "Cannot evaluate this node. Fix the parents first."
+                parent_output, "Cannot evaluate this node. Fix the parents first."
             )
-        return state_in
+        return parent_output
 
     def _evaluate(self) -> StateNodeOutput:
         """Compute the state in this node, based on previous node=state and edge=event"""
@@ -288,15 +292,26 @@ class StateNode(Node):
         self._is_null = False
 
         if self.is_root:
+            parent_output = scenario.State()
+        else:
+            parent_output = self._get_parent_output()
+
+        # TODO allow customizing the initial fs situation
+        state_in = add_simulated_fs_from_repo(
+            parent_output.state,
+            self.scene.repo,
+            situation="default",
+            root_vfs=self.root_vfs_tempdir,
+        )
+
+        if self.is_root:
             logger.info(f"no edge in: {self} inited as null state (root)")
             self._is_null = True
-            return StateNodeOutput(scenario.State(), [], "")
+            return StateNodeOutput(state_in)
 
-        state_in = self._get_input_state()
         event_spec = self.edge_in.event_spec
-
         logger.info(f"{'re' if self.value else ''}computing state on {self}")
-        return run_scenario(self.scene.context, state_in.state, event_spec.event)
+        return run_scenario(self.scene.context, state_in, event_spec.event)
 
     def onInputChanged(self, socket: "Socket"):
         super().onInputChanged(socket)
@@ -318,7 +333,10 @@ class StateNode(Node):
             return
 
         intent = dialog.finalize()
-        self.set_custom_value(intent.output)
+        state_with_fs = add_simulated_fs_from_repo(
+            intent.output, self.scene.repo, root_vfs=self.root_vfs_tempdir
+        )
+        self.set_custom_value(state_with_fs)
 
     def open_edit_deltas_dialog(self, parent: QWidget = None):
         dialog = edit_delta.EditDeltaDialog(parent, self._deltas_source)
@@ -355,9 +373,8 @@ class StateNode(Node):
 
     def _set_error_value(self, e: Exception):
         self.grNode.setToolTip(str(e))
-        tb = e.__traceback__
         logger.error(e)
-        value = StateNodeOutput(traceback=tb)
+        value = StateNodeOutput(exception=e)
 
         self.value = value
         # first set our own value, otherwise evalchildren will try to fetch our eval()
@@ -377,13 +394,13 @@ class StateNode(Node):
 
     def eval(self) -> StateNodeOutput:
         if self._is_custom:
-            logger.info("Skipping eval of custom node.")
+            logger.info(f"Skipping eval of custom node {self}.")
             self.markInvalid(False)
             self.markDirty(False)
             return self.value
 
         if not self.isDirty() and not self.isInvalid():
-            logger.info("Returning cached value.")
+            logger.info(f"Returning cached value for {self}.")
             return self.value
 
         try:
@@ -429,7 +446,12 @@ class StateNode(Node):
             value = data["value"]
             self.content.edit.setText(value)
             if custom_state := data.get("custom-state"):
-                self.set_custom_value(parse_state(custom_state))
+                raw_state = parse_state(custom_state)
+                state_with_fs = add_simulated_fs_from_repo(
+                    raw_state, self.scene.repo, root_vfs=self.root_vfs_tempdir
+                )
+                self.set_custom_value(state_with_fs)
+
             return True & res
         except Exception as e:
             dumpException(e)
@@ -443,6 +465,42 @@ class StateNode(Node):
         """The next state, if any."""
         outs = self.getOutputs()
         return outs[0] if outs else None
+
+
+def add_simulated_fs_from_repo(
+    state_in_ori: State, repo: "CharmRepo", situation: str = "default", root_vfs=None
+) -> State:
+    vfs_roots = repo.mounts()[situation]
+    # tmp_root = Path(f'/tmp/theatre/vfs/{situation}')
+    # tmp_root.mkdir(exist_ok=True, parents=True)
+
+    containers = []
+    for container in state_in_ori.containers:
+        # if there are container definitions without mounts, we try to match them to existing
+        # static mount definitions and patch them in.
+        if not container.mounts:
+            if repo:
+                mounts = vfs_roots.get(container.name, {})
+                container = container.replace(mounts=mounts)
+
+        # make a copy of all the mount sources
+        new_mounts = {}
+        for name, mount in container.mounts.items():
+            new_src = tempfile.mkdtemp(
+                prefix=f"{container.name}-{name}-mount", dir=root_vfs
+            )
+
+            # copy previous fs state into new mount location.
+            # charm exec may mutate it!
+            copytree(mount.src, new_src, dirs_exist_ok=True)
+
+            new_mount = mount.replace(src=new_src)
+            new_mounts[name] = new_mount
+
+        container = container.replace(mounts=new_mounts)
+        containers.append(container)
+
+    return state_in_ori.replace(containers=containers)
 
 
 def create_new_node(

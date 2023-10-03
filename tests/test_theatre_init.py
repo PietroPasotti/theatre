@@ -11,7 +11,7 @@ def init_mock_charm_root(root, charm_source="", meta_source=""):
     (root / "metadata.yaml").write_text(meta_source)
 
 
-def init_theatre(root, loader_source="", state_source=""):
+def init_theatre(root, loader_source="", state_source="{}"):
     theatre_dir = root / ".theatre"
     theatre_dir.mkdir()
     (theatre_dir / "loader.py").write_text(loader_source)

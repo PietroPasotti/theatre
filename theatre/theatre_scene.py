@@ -18,10 +18,15 @@ from theatre.trace_tree_widget.state_node import (
     StateNode,
     StateContent,
 )
-from theatre.trace_tree_widget.state_bases import GraphicsSocket, StateGraphicsNode, DeltaLabel
+from theatre.trace_tree_widget.state_bases import (
+    GraphicsSocket,
+    StateGraphicsNode,
+    DeltaLabel,
+)
 
 if typing.TYPE_CHECKING:
     from theatre.main_window import TheatreMainWindow
+    from theatre.charm_repo_tools import CharmRepo
 
 SerializedScene = dict  # TODO
 
@@ -122,6 +127,10 @@ class TheatreScene(QObject, _Scene):
     def context(self):
         return self._main_window.context
 
+    @property
+    def repo(self) -> typing.Optional["CharmRepo"]:
+        return self._main_window._repo
+
     def loadFromFile(self, filename: str):
         with open(filename, "r") as file:
             raw_data = file.read()
@@ -131,18 +140,22 @@ class TheatreScene(QObject, _Scene):
                 self.deserialize(data)
                 self.has_been_modified = False
             except json.JSONDecodeError:
-                raise InvalidFile(f"{os.path.basename(filename)} is not a valid JSON file")
+                raise InvalidFile(
+                    f"{os.path.basename(filename)} is not a valid JSON file"
+                )
             except Exception as e:
                 logger.error(e, exc_info=True)
 
     def getEdgeClass(self):
         return EventEdge
 
-    def deserialize(self, data: dict, hashmap: dict = {},
-                    restore_id: bool = True, *args, **kwargs) -> bool:
+    def deserialize(
+        self, data: dict, hashmap: dict = {}, restore_id: bool = True, *args, **kwargs
+    ) -> bool:
         hashmap = {}
 
-        if restore_id: self.id = data['id']
+        if restore_id:
+            self.id = data["id"]
 
         # -- deserialize NODES
 
@@ -151,18 +164,20 @@ class TheatreScene(QObject, _Scene):
         all_nodes = self.nodes.copy()
 
         # go through deserialized nodes:
-        for node_data in data['nodes']:
+        for node_data in data["nodes"]:
             # can we find this node in the scene?
             found: StateNode | typing.Literal[False] = False
             for node in all_nodes:
-                if node.id == node_data['id']:
+                if node.id == node_data["id"]:
                     found = node
                     break
 
             if not found:
                 try:
                     new_node = StateNode(self)
-                    new_node.deserialize(node_data, hashmap, restore_id, *args, **kwargs)
+                    new_node.deserialize(
+                        node_data, hashmap, restore_id, *args, **kwargs
+                    )
                     new_node.onDeserialized(node_data)
                 except Exception as e:
                     logger.error(e, exc_info=True)
@@ -184,11 +199,11 @@ class TheatreScene(QObject, _Scene):
         all_edges = self.edges.copy()
 
         # go through deserialized edges:
-        for edge_data in data['edges']:
+        for edge_data in data["edges"]:
             # can we find this node in the scene?
             found: EventEdge | typing.Literal[False] = False
             for edge in all_edges:
-                if edge.id == edge_data['id']:
+                if edge.id == edge_data["id"]:
                     found = edge
                     break
 
@@ -208,7 +223,9 @@ class TheatreScene(QObject, _Scene):
         return True
 
     def get_node_at(self, pos: QPoint) -> StateNode | None:
-        nearest = self.find_nearest_parent_at(pos, (GraphicsSocket, StateContent, StateGraphicsNode, DeltaLabel))
+        nearest = self.find_nearest_parent_at(
+            pos, (GraphicsSocket, StateContent, StateGraphicsNode, DeltaLabel)
+        )
         if nearest is None:
             return None
         if isinstance(nearest, GraphicsSocket):
@@ -218,9 +235,9 @@ class TheatreScene(QObject, _Scene):
         else:
             raise TypeError(nearest)
 
-    def find_nearest_parent_at(self, pos: QPoint,
-                               types: typing.Tuple[type, ...]
-                               ) -> QGraphicsItem | None:
+    def find_nearest_parent_at(
+        self, pos: QPoint, types: typing.Tuple[type, ...]
+    ) -> QGraphicsItem | None:
         """Climb up the widget hierarchy until we find a parent of one of the desired types."""
         item = self.getItemAt(pos)
 
@@ -231,12 +248,14 @@ class TheatreScene(QObject, _Scene):
             item = item.widget()
 
         while item:
-            print(f'item: {item}')
+            print(f"item: {item}")
             if isinstance(item, types):
                 return item
             # happens on edges
             if not hasattr(item, "parent"):
-                logger.warn(f'encountered unexpected item type while climbing up parents: {item}')
+                logger.warn(
+                    f"encountered unexpected item type while climbing up parents: {item}"
+                )
                 return None
             item = item.parent()
 

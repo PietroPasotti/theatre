@@ -4,6 +4,7 @@ import json
 import typing
 from functools import partial
 
+from PyQt5.QtCore import QMimeData
 from qtpy.QtGui import QDragMoveEvent, QWheelEvent
 from nodeeditor.node_edge import EDGE_TYPE_DEFAULT
 from nodeeditor.node_edge_dragging import EdgeDragging as _EdgeDragging
@@ -37,12 +38,15 @@ from theatre.trace_tree_widget.library_widget import (
     DynamicSubtreeSpec,
     DynamicSubtreeName,
     DYNAMIC_SUBTREES_TEMPLATES_DIR,
+    DYNAMIC_STATE_SPEC_MIMETYPE,
+    DynamicStateSpec,
 )
 from theatre.dialogs.new_state import NewStateDialog
 from theatre.trace_tree_widget.state_node import (
     StateNode,
     StateContent,
     create_new_node,
+    add_simulated_fs_from_repo,
 )
 from theatre.trace_tree_widget.utils import autolayout
 from theatre.trace_tree_widget.state_bases import GraphicsSocket
@@ -93,7 +97,9 @@ class GraphicsView(QDMGraphicsView):
     def dragMoveEvent(self, event: QDragMoveEvent):
         mime_data = event.mimeData()
         scene: TheatreScene = self.parent().scene
-        if mime_data.hasFormat(STATE_SPEC_MIMETYPE):
+        if mime_data.hasFormat(STATE_SPEC_MIMETYPE) or mime_data.hasFormat(
+            DYNAMIC_STATE_SPEC_MIMETYPE
+        ):
             is_hovering_bg = scene.getItemAt(event.pos()) is None
             event.setAccepted(is_hovering_bg)
         elif mime_data.hasFormat(SUBTREE_SPEC_MIMETYPE) or mime_data.hasFormat(
@@ -295,6 +301,7 @@ class NodeEditorWidget(_NodeEditorWidget):
             event.mimeData().hasFormat(STATE_SPEC_MIMETYPE)
             or event.mimeData().hasFormat(SUBTREE_SPEC_MIMETYPE)
             or event.mimeData().hasFormat(DYNAMIC_SUBTREE_SPEC_MIMETYPE)
+            or event.mimeData().hasFormat(DYNAMIC_STATE_SPEC_MIMETYPE)
         ):
             event.acceptProposedAction()
         else:
@@ -304,21 +311,24 @@ class NodeEditorWidget(_NodeEditorWidget):
     def on_drop(self, event: QEvent):
         # if hovering on background: accept STATE SPEC drops
         # if hovering on state: accept SUBTREE SPEC drops
-        mime_data = event.mimeData()
+        mime_data: QMimeData = event.mimeData()
 
         # TODO: if we're dropping something on a Delta...
 
-        for mimetype, method in (
+        for mimetype, drop_handler_method in (
             (STATE_SPEC_MIMETYPE, self._drop_node),
+            (DYNAMIC_STATE_SPEC_MIMETYPE, self._drop_dynamic_node),
             (SUBTREE_SPEC_MIMETYPE, self._drop_subtree),
             (DYNAMIC_SUBTREE_SPEC_MIMETYPE, self._drop_dynamic_subtree),
         ):
+
             if mime_data.hasFormat(mimetype):
                 event_data = mime_data.data(mimetype)
                 data_stream = QDataStream(event_data, QIODevice.ReadOnly)
                 name = data_stream.readQString()
                 spec = get_spec(name)
-                method(spec, event.pos())
+                logger.debug(f"handling {spec} drop with {drop_handler_method}")
+                drop_handler_method(spec, event.pos())
                 break
 
             event.setDropAction(Qt.MoveAction)
@@ -326,12 +336,27 @@ class NodeEditorWidget(_NodeEditorWidget):
         else:
             event.ignore()
 
+    def _set_state_on_node(self, node: StateNode, state_in: State):
+        """Assign a state to a node and inject the simulated fs from the repo."""
+        state_with_fs = add_simulated_fs_from_repo(
+            state_in, self.scene.repo, root_vfs=node.root_vfs_tempdir
+        )
+        node.set_custom_value(state_with_fs)
+
     def _drop_node(self, spec: StateSpec, pos: QPoint):
         node = create_new_node(
             scene=self.scene, view=self.view, pos=pos, name=spec.name, icon=spec.icon
         )
-        node.set_custom_value(spec.state)
+        self._set_state_on_node(node, spec.state)
         self.scene.history.storeHistory("Created node %s" % node.__class__.__name__)
+
+    def _drop_dynamic_node(self, spec: DynamicStateSpec, pos: QPoint):
+        node = create_new_node(
+            scene=self.scene, view=self.view, pos=pos, name=spec.name, icon=spec.icon
+        )
+        raw_state = spec.get_state(self._charm_spec)
+        self._set_state_on_node(node, raw_state)
+        self.scene.history.storeHistory(f"Created dynamic node {spec.name}")
 
     def _drop_subtree(self, spec: SubtreeSpec, pos: QPoint):
         start = self.scene.get_node_at(pos)
@@ -390,6 +415,9 @@ class NodeEditorWidget(_NodeEditorWidget):
         force_reeval = context_menu.addAction(get_icon("start"), "Force-reevaluate")
         context_menu.addAction(get_icon("delete"), "Delete node", selected.remove)
         edit_action = context_menu.addAction(get_icon("edit"), "Edit")
+        inspect_vfs_action = context_menu.addAction(
+            get_icon("folder_copy"), "Inspect virtual filesystem"
+        )
         context_menu.addAction(
             get_icon("edit_delta"),
             "Deltas",
@@ -424,6 +452,9 @@ class NodeEditorWidget(_NodeEditorWidget):
         if action == force_reeval:
             selected.markDirty()
             selected.eval()
+        elif action == inspect_vfs_action:
+            open_vfs_in_external_editor(selected.root_vfs_tempdir)
+
         elif action == edit_action:
             selected.open_edit_dialog(self)
             self.state_node_changed.emit(selected)
@@ -439,23 +470,6 @@ class NodeEditorWidget(_NodeEditorWidget):
         if action == change_event_action:
             event_spec = self.choose_event()
             edge.set_event_spec(event_spec)  # this will notify the end node
-
-        # bezierAct = context_menu.addAction("Bezier Edge")
-        # directAct = context_menu.addAction("Direct Edge")
-        # squareAct = context_menu.addAction("Square Edge")
-        # action = context_menu.exec_(self.mapToGlobal(event.pos()))
-        #
-        # selected = None
-        # item = self.scene.getItemAt(event.pos())
-        # if hasattr(item, "edge"):
-        #     selected = item.edge
-        #
-        # if selected and action == bezierAct:
-        #     selected.edge_type = EDGE_TYPE_BEZIER
-        # if selected and action == directAct:
-        #     selected.edge_type = EDGE_TYPE_DIRECT
-        # if selected and action == squareAct:
-        #     selected.edge_type = EDGE_TYPE_SQUARE
 
     def _finalize_node(self, new_state_node):
         self.scene.doDeselectItems()
@@ -498,7 +512,10 @@ class NodeEditorWidget(_NodeEditorWidget):
 
         logger.info(f"created new state! {state_intent}")
         node = self._new_node()
-        node.set_custom_value(state_intent.output)
+        # TODO should we allow overriding virtual fs?
+
+        raw_state = state_intent.output
+        self._set_state_on_node(node, raw_state)
         self.state_node_created.emit(state_intent)
 
     def _on_branch_action(

@@ -13,4 +13,10 @@ class StateNodeOutput:
     state: typing.Optional[scenario.State] = None
     charm_logs: typing.Optional[typing.List[JujuLogLine]] = None
     scenario_logs: typing.Optional[str] = None
-    traceback: typing.Optional[inspect.Traceback] = None
+    exception: typing.Optional[Exception] = None
+
+    @property
+    def traceback(self) -> typing.Optional[inspect.Traceback]:
+        if self.exception:
+            return self.exception.__traceback__
+        return None

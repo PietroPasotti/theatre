@@ -58,6 +58,7 @@ class TheatreMainWindow(NodeEditorWindow):
     def __init__(self):
         from scenario import Context
 
+        self._repo: typing.Optional["CharmRepo"] = None
         self._charm_ctx: Context | None = None
         self._charm_spec: _CharmSpec | None = None
         super().__init__()
@@ -274,6 +275,11 @@ class TheatreMainWindow(NodeEditorWindow):
         self.setTitle()
         return True
 
+    def _set_repo(self, repo: "CharmRepo"):
+        self._repo = repo
+        ctx = repo.load_context()
+        self._update_charm_context(ctx)
+
     def _update_charm_context(self, ctx: "Context"):
         self._charm_ctx = ctx
         self.setTitle()
@@ -384,8 +390,7 @@ class TheatreMainWindow(NodeEditorWindow):
 
     def resume_from_charm_repo(self, repo: CharmRepo):
         # load ctx
-        ctx = repo.load_context()
-        self._update_charm_context(ctx)
+        self._set_repo(repo)
 
         # todo: get all containers filesystem from Context, make a copy.
         #  that is going to be the 'bare' filesystem template for this charm.
