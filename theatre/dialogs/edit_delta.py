@@ -37,9 +37,13 @@ class EditDeltaDialog(FileBackedEditDialog):
                 logger.info(f"ignored {name}:{value} as it is not a function")
                 continue
 
+            if name.startswith("_"):
+                logger.info(f"ignored {name}: private function")
+                continue
+
             if inspect.getmodule(value).__name__ != source.name.split(".")[0]:
                 logger.info(
-                    f"ignored {name}:{value} as it is not defined in the deltas module"
+                    f"ignored {name}:{value} as it is imported from an external module"
                 )
                 continue
 
