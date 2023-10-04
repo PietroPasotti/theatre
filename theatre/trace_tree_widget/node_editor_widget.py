@@ -6,8 +6,6 @@ import typing
 from functools import partial
 from pathlib import Path
 
-from PyQt5.QtCore import QMimeData
-from qtpy.QtGui import QDragMoveEvent, QWheelEvent
 from nodeeditor.node_edge import EDGE_TYPE_DEFAULT
 from nodeeditor.node_edge_dragging import EdgeDragging as _EdgeDragging
 from nodeeditor.node_editor_widget import NodeEditorWidget as _NodeEditorWidget
@@ -15,45 +13,41 @@ from nodeeditor.node_graphics_edge import QDMGraphicsEdge
 from nodeeditor.node_graphics_view import MODE_EDGE_DRAG, QDMGraphicsView
 from nodeeditor.node_node import Node
 from nodeeditor.utils import dumpException
-from qtpy.QtCore import QDataStream, QIODevice, Qt
-from qtpy.QtCore import QEvent
-from qtpy.QtCore import QPoint
-from qtpy.QtCore import Signal
-from qtpy.QtGui import QMouseEvent
-from qtpy.QtWidgets import QAction, QGraphicsProxyWidget, QMenu
-from qtpy.QtWidgets import QVBoxLayout
+from PyQt5.QtCore import QMimeData
+from qtpy.QtCore import QDataStream, QEvent, QIODevice, QPoint, Qt, Signal
+from qtpy.QtGui import QDragMoveEvent, QMouseEvent, QWheelEvent
+from qtpy.QtWidgets import QAction, QGraphicsProxyWidget, QMenu, QVBoxLayout
+from scenario import Event, Relation, State
 
+from theatre.dialogs.event_dialog import LIFECYCLE_EVENTS, EventPicker, EventSpec
 from theatre.dialogs.file_backed_edit_dialog import Intent
+from theatre.dialogs.new_state import NewStateDialog
 from theatre.helpers import get_icon
 from theatre.logger import logger
-from theatre.theatre_scene import TheatreScene, SerializedScene
-from theatre.dialogs.event_dialog import EventPicker, EventSpec, LIFECYCLE_EVENTS
+from theatre.theatre_scene import SerializedScene, TheatreScene
 from theatre.trace_tree_widget.event_edge import EventEdge
 from theatre.trace_tree_widget.library_widget import (
+    DYNAMIC_STATE_SPEC_MIMETYPE,
+    DYNAMIC_SUBTREE_SPEC_MIMETYPE,
+    DYNAMIC_SUBTREES_TEMPLATES_DIR,
     STATE_SPEC_MIMETYPE,
-    get_sorted_entries,
-    get_spec,
+    SUBTREE_SPEC_MIMETYPE,
+    DynamicStateSpec,
+    DynamicSubtreeName,
+    DynamicSubtreeSpec,
     StateSpec,
     SubtreeSpec,
-    SUBTREE_SPEC_MIMETYPE,
-    DYNAMIC_SUBTREE_SPEC_MIMETYPE,
-    DynamicSubtreeSpec,
-    DynamicSubtreeName,
-    DYNAMIC_SUBTREES_TEMPLATES_DIR,
-    DYNAMIC_STATE_SPEC_MIMETYPE,
-    DynamicStateSpec,
+    get_sorted_entries,
+    get_spec,
 )
-from theatre.dialogs.new_state import NewStateDialog
+from theatre.trace_tree_widget.state_bases import GraphicsSocket
 from theatre.trace_tree_widget.state_node import (
-    StateNode,
     StateContent,
-    create_new_node,
+    StateNode,
     add_simulated_fs_from_repo,
+    create_new_node,
 )
 from theatre.trace_tree_widget.utils import autolayout
-from theatre.trace_tree_widget.state_bases import GraphicsSocket
-
-from scenario import Event, State, Relation
 
 if typing.TYPE_CHECKING:
     from theatre.main_window import TheatreMainWindow

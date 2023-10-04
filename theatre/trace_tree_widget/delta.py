@@ -8,8 +8,8 @@ from scenario import State
 
 from theatre.logger import logger
 from theatre.trace_tree_widget.scenario_interface import run_scenario
-from theatre.trace_tree_widget.structs import StateNodeOutput
 from theatre.trace_tree_widget.state_bases import Socket
+from theatre.trace_tree_widget.structs import StateNodeOutput
 
 if typing.TYPE_CHECKING:
     from theatre.trace_tree_widget.state_node import (

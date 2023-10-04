@@ -4,29 +4,24 @@ import json
 import os
 import typing
 
-from nodeeditor.node_scene import Scene as _Scene, InvalidFile
+from nodeeditor.node_scene import InvalidFile
+from nodeeditor.node_scene import Scene as _Scene
 from nodeeditor.node_scene_clipboard import SceneClipboard as _SceneClipboard
-from qtpy.QtCore import QObject
-from qtpy.QtCore import QPoint
-from qtpy.QtCore import Signal
-from qtpy.QtWidgets import QGraphicsItem
-from qtpy.QtWidgets import QGraphicsProxyWidget
+from qtpy.QtCore import QObject, QPoint, Signal
+from qtpy.QtWidgets import QGraphicsItem, QGraphicsProxyWidget
 
 from theatre.logger import logger as theatre_logger
 from theatre.trace_tree_widget.event_edge import EventEdge
-from theatre.trace_tree_widget.state_node import (
-    StateNode,
-    StateContent,
-)
 from theatre.trace_tree_widget.state_bases import (
+    DeltaLabel,
     GraphicsSocket,
     StateGraphicsNode,
-    DeltaLabel,
 )
+from theatre.trace_tree_widget.state_node import StateContent, StateNode
 
 if typing.TYPE_CHECKING:
-    from theatre.main_window import TheatreMainWindow
     from theatre.charm_repo_tools import CharmRepo
+    from theatre.main_window import TheatreMainWindow
 
 logger = theatre_logger.getChild("scene")
 

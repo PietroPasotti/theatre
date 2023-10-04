@@ -9,10 +9,9 @@ from pathlib import Path
 
 from PyQt5.QtGui import QImage
 from qtpy.QtCore import QObject
-from qtpy.QtGui import QPainter, QPixmap
-from qtpy.QtGui import QPalette, QColor, QIcon
+from qtpy.QtGui import QColor, QIcon, QPainter, QPalette, QPixmap
 from qtpy.QtSvg import QSvgRenderer
-from qtpy.QtWidgets import QWidget, QMessageBox
+from qtpy.QtWidgets import QMessageBox, QWidget
 
 from theatre.config import RESOURCES_DIR
 from theatre.logger import logger as theatre_logger

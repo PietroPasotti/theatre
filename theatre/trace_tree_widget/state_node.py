@@ -8,31 +8,25 @@ from pathlib import Path
 from shutil import copytree
 
 import scenario
-from PyQt5.QtCore import QPointF
 from nodeeditor.node_content_widget import QDMNodeContentWidget
 from nodeeditor.node_node import Node
-from nodeeditor.node_socket import (
-    LEFT_CENTER,
-    RIGHT_CENTER,
-)
+from nodeeditor.node_socket import LEFT_CENTER, RIGHT_CENTER
 from nodeeditor.utils import dumpException
-from qtpy.QtCore import QEvent
-from qtpy.QtCore import QPoint
-from qtpy.QtCore import Qt, Signal
+from PyQt5.QtCore import QPointF
+from qtpy.QtCore import QEvent, QPoint, Qt, Signal
 from qtpy.QtGui import QIcon
-from qtpy.QtWidgets import QLineEdit
-from qtpy.QtWidgets import QVBoxLayout, QWidget
+from qtpy.QtWidgets import QLineEdit, QVBoxLayout, QWidget
 from scenario.state import State
 
 from theatre.charm_repo_tools import CharmRepo
+from theatre.dialogs import edit_delta, new_state
 from theatre.helpers import get_icon
 from theatre.logger import logger as theatre_logger
 from theatre.scenario_json import parse_state
-from theatre.dialogs import new_state, edit_delta
-from theatre.trace_tree_widget.delta import DeltaSocket, Delta, DeltaNode
+from theatre.trace_tree_widget.delta import Delta, DeltaNode, DeltaSocket
 from theatre.trace_tree_widget.event_edge import EventEdge
 from theatre.trace_tree_widget.scenario_interface import run_scenario
-from theatre.trace_tree_widget.state_bases import StateGraphicsNode, Socket
+from theatre.trace_tree_widget.state_bases import Socket, StateGraphicsNode
 from theatre.trace_tree_widget.structs import StateNodeOutput
 
 if typing.TYPE_CHECKING:

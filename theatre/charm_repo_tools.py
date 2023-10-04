@@ -1,9 +1,9 @@
 import json
 from pathlib import Path
-from typing import Optional, Dict, Tuple
+from typing import Dict, Optional, Tuple
 
 import yaml
-from scenario import Context, State, Mount
+from scenario import Context, Mount, State
 
 from theatre.config import TEMPLATES_DIR
 from theatre.helpers import load_module

@@ -1,23 +1,18 @@
 # Copyright 2022 Canonical Ltd.
 # See LICENSE file for licensing details.
 import dataclasses
-import typing
 import traceback
+import typing
 
 import scenario
 import yaml
-from qtpy.QtCore import Qt
-from qtpy.QtWidgets import QTabWidget, QTextEdit
-from qtpy.QtCore import Signal, QItemSelection
-from qtpy.QtGui import QBrush
-from qtpy.QtGui import QStandardItemModel, QStandardItem
-from qtpy.QtWidgets import QListView
-from qtpy.QtWidgets import QSplitter
-from qtpy.QtWidgets import QTreeView
+from qtpy.QtCore import QItemSelection, Qt, Signal
+from qtpy.QtGui import QBrush, QStandardItem, QStandardItemModel
+from qtpy.QtWidgets import QListView, QSplitter, QTabWidget, QTextEdit, QTreeView
 
+from theatre.helpers import get_color, get_icon, toggle_visible
 from theatre.logger import logger
-from theatre.helpers import get_icon, get_color, toggle_visible
-from theatre.trace_tree_widget.state_node import StateNode, ParentEvaluationFailed
+from theatre.trace_tree_widget.state_node import ParentEvaluationFailed, StateNode
 from theatre.trace_tree_widget.structs import StateNodeOutput
 
 if typing.TYPE_CHECKING:

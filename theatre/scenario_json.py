@@ -7,16 +7,16 @@ import typing
 from scenario.state import (
     Action,
     Container,
+    DeferredEvent,
     Event,
+    Model,
+    Network,
     Relation,
     Secret,
     State,
-    Model,
-    Network,
-    DeferredEvent,
     StoredState,
+    _EntityStatus,
 )
-from scenario.state import _EntityStatus
 
 
 def _convert_if_not_none(

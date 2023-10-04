@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 import yaml
-from scenario import State, Container
+from scenario import Container, State
 from scenario.runtime import UncaughtCharmError
 
 from theatre.charm_repo_tools import CharmRepo

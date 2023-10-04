@@ -1,13 +1,13 @@
 # Copyright 2022 Canonical Ltd.
 # See LICENSE file for licensing details.
 import contextlib
-from typing import Any, Tuple, Callable
+from typing import Any, Callable, Tuple
 
 import scenario
-from scenario import State, Event, Action
+from scenario import Action, Event, State
 
-from theatre.trace_tree_widget.structs import StateNodeOutput
 from theatre.logger import logger as theatre_logger
+from theatre.trace_tree_widget.structs import StateNodeOutput
 
 logger = theatre_logger.getChild("scenario_interface")
 

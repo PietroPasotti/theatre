@@ -7,29 +7,28 @@ from itertools import chain
 from PyQt5 import QtCore
 from PyQt5.QtGui import QCursor
 from PyQt5.QtWidgets import QMenu
-from qtpy.QtCore import Signal
-
 from qtpy import QtGui
+from qtpy.QtCore import Signal
 from qtpy.QtGui import QFont, QIntValidator
 from qtpy.QtWidgets import (
-    QWidget,
-    QVBoxLayout,
-    QLayout,
-    QLineEdit,
-    QLabel,
-    QPlainTextEdit,
+    QComboBox,
     QDialog,
     QDialogButtonBox,
-    QComboBox,
-    QPushButton,
     QHBoxLayout,
+    QLabel,
+    QLayout,
+    QLineEdit,
+    QPlainTextEdit,
+    QPushButton,
+    QVBoxLayout,
+    QWidget,
 )
 from scenario import Event
 from scenario.state import (
     ACTION_EVENT_SUFFIX,
+    PEBBLE_READY_EVENT_SUFFIX,
     RELATION_EVENTS_SUFFIX,
     STORAGE_EVENTS_SUFFIX,
-    PEBBLE_READY_EVENT_SUFFIX,
 )
 
 from theatre.helpers import get_icon

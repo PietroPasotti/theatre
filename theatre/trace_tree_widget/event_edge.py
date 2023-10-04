@@ -3,25 +3,27 @@
 import typing
 from dataclasses import asdict
 
-from PyQt5.QtGui import QPainter, QPainterPath
-from PyQt5.QtWidgets import QWidget
-from nodeeditor.node_edge import Edge as _Edge, EDGE_TYPE_DIRECT
+from nodeeditor.node_edge import EDGE_TYPE_DIRECT
+from nodeeditor.node_edge import Edge as _Edge
 from nodeeditor.node_edge_validators import (
-    edge_validator_debug,
-    edge_cannot_connect_two_outputs_or_two_inputs,
     edge_cannot_connect_input_and_output_of_same_node,
+    edge_cannot_connect_two_outputs_or_two_inputs,
+    edge_validator_debug,
 )
 from nodeeditor.node_graphics_edge import QDMGraphicsEdge
+from PyQt5.QtGui import QPainter, QPainterPath
+from PyQt5.QtWidgets import QWidget
 from qtpy.QtGui import QIcon
 
-from theatre.helpers import get_icon, get_color
+from theatre.dialogs.event_dialog import EventSpec
+from theatre.helpers import get_color, get_icon
 from theatre.logger import logger as theatre_logger
 from theatre.scenario_json import parse_event
-from theatre.dialogs.event_dialog import EventSpec
 
 if typing.TYPE_CHECKING:
-    from theatre.theatre_scene import TheatreScene
     from nodeeditor.node_socket import Socket
+
+    from theatre.theatre_scene import TheatreScene
     from theatre.trace_tree_widget.state_node import StateNode
 
 

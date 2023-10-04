@@ -7,9 +7,7 @@ from PyQt5.QtWidgets import QFileDialog
 from qtpy.QtWidgets import QPushButton
 from scenario import Context
 
-from theatre.charm_repo_tools import (
-    CharmRepo,
-)
+from theatre.charm_repo_tools import CharmRepo
 from theatre.dialogs.file_backed_edit_dialog import FileBackedEditDialog
 from theatre.helpers import show_error_dialog
 from theatre.logger import logger

@@ -4,7 +4,7 @@ import inspect
 from dataclasses import dataclass
 from pathlib import Path
 
-from theatre.dialogs.file_backed_edit_dialog import FileBackedEditDialog, TEMPLATES_DIR
+from theatre.dialogs.file_backed_edit_dialog import TEMPLATES_DIR, FileBackedEditDialog
 from theatre.helpers import load_module
 from theatre.logger import logger
 

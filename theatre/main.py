@@ -3,14 +3,13 @@ import os
 import sys
 import typing
 from pathlib import Path
-from theatre.logger import logger as theatre_logger
 
 import typer
 from qtpy.QtWidgets import QApplication
 
 from theatre.charm_repo_tools import CharmRepo
+from theatre.logger import logger as theatre_logger
 from theatre.main_window import TheatreMainWindow
-
 
 logger = theatre_logger.getChild(__file__)
 

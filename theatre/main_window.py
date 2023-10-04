@@ -7,28 +7,24 @@ from importlib.metadata import version
 from pathlib import Path
 
 from nodeeditor.node_editor_window import NodeEditorWindow
-from nodeeditor.utils import dumpException
-from nodeeditor.utils import loadStylesheets
-from qtpy.QtCore import QSettings
-from qtpy.QtCore import Qt, QSignalMapper
+from nodeeditor.utils import dumpException, loadStylesheets
+from qtpy.QtCore import QSettings, QSignalMapper, Qt
 from qtpy.QtGui import QKeySequence
-from qtpy.QtWidgets import QApplication
 from qtpy.QtWidgets import (
-    QMdiArea,
-    QWidget,
-    QDockWidget,
     QAction,
-    QMessageBox,
+    QApplication,
+    QDockWidget,
     QFileDialog,
+    QMdiArea,
+    QMessageBox,
+    QWidget,
 )
 
-from theatre import config, __version__
+from theatre import __version__, config
 from theatre.charm_repo_tools import CharmRepo, load_charm_context
-from theatre.config import SCENE_FILE_TYPE, SCENE_EXTENSION
-from theatre.dialogs.context_loader import (
-    CharmCtxLoaderDialog,
-)
-from theatre.helpers import get_icon, toggle_visible, show_error_dialog
+from theatre.config import SCENE_EXTENSION, SCENE_FILE_TYPE
+from theatre.dialogs.context_loader import CharmCtxLoaderDialog
+from theatre.helpers import get_icon, show_error_dialog, toggle_visible
 from theatre.logger import logger as theatre_logger
 from theatre.trace_inspector import TraceInspectorWidget
 from theatre.trace_tree_widget.library_widget import Library
@@ -36,8 +32,8 @@ from theatre.trace_tree_widget.node_editor_widget import NodeEditorWidget
 
 if typing.TYPE_CHECKING:
     from nodeeditor.node_editor_widget import NodeEditorWidget
-    from scenario.state import _CharmSpec
     from scenario import Context
+    from scenario.state import _CharmSpec
 
 
 logger = theatre_logger.getChild(__file__)

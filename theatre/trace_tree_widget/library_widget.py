@@ -5,18 +5,16 @@ import typing
 from dataclasses import dataclass
 from pathlib import Path
 
-from qtpy.QtCore import QSize, Qt, QByteArray, QDataStream, QMimeData, QIODevice, QPoint
-from qtpy.QtGui import QDrag
-from qtpy.QtGui import QIcon
-from qtpy.QtWidgets import QListWidget, QAbstractItemView, QListWidgetItem
+from qtpy.QtCore import QByteArray, QDataStream, QIODevice, QMimeData, QPoint, QSize, Qt
+from qtpy.QtGui import QDrag, QIcon
+from qtpy.QtWidgets import QAbstractItemView, QListWidget, QListWidgetItem
 from scenario import State
+from scenario.state import Container, _CharmSpec
 
 from theatre.config import RESOURCES_DIR
 from theatre.dialogs.file_backed_edit_dialog import Intent
 from theatre.helpers import get_icon
-from scenario.state import _CharmSpec, Container
 from theatre.logger import logger as theatre_logger
-
 
 if typing.TYPE_CHECKING:
     from theatre.theatre_scene import SerializedScene

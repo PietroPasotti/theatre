@@ -2,15 +2,15 @@
 # See LICENSE file for licensing details.
 import typing
 
+from nodeeditor.node_graphics_node import QDMGraphicsNode
+from nodeeditor.node_graphics_socket import QDMGraphicsSocket
+from nodeeditor.node_socket import Socket as _Socket
 from PyQt5.QtWidgets import QWidget
 from qtpy.QtCore import QRectF, Qt
 from qtpy.QtGui import QBrush, QFont, QPainter, QPainterPath
 from qtpy.QtWidgets import QGraphicsTextItem
-from nodeeditor.node_graphics_node import QDMGraphicsNode
-from nodeeditor.node_graphics_socket import QDMGraphicsSocket
-from nodeeditor.node_socket import Socket as _Socket
 
-from theatre.helpers import get_icon, get_color
+from theatre.helpers import get_color, get_icon
 
 if typing.TYPE_CHECKING:
     from theatre.trace_tree_widget.state_node import StateNode

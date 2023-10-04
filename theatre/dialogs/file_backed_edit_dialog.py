@@ -11,15 +11,17 @@ from pathlib import Path
 from PyQt5.QtGui import QIcon
 from PyQt5.QtWidgets import QLineEdit
 from qtpy import QtGui
-from qtpy.QtWidgets import QLabel, QPushButton, QCheckBox
 from qtpy.QtWidgets import (
-    QVBoxLayout,
+    QCheckBox,
     QDialog,
     QDialogButtonBox,
+    QLabel,
+    QPushButton,
+    QVBoxLayout,
 )
 
 from theatre.config import TEMPLATES_DIR
-from theatre.helpers import show_error_dialog, get_icon
+from theatre.helpers import get_icon, show_error_dialog
 from theatre.logger import logger
 
 
