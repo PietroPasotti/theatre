@@ -18,8 +18,8 @@ DEFAULT_TEMPLATE = NEW_STATE_TEMPLATE
 
 
 class Mode(Enum):
-    new = 'new'
-    edit = 'edit'
+    new = "new"
+    edit = "edit"
 
 
 class NewStateDialog(FileBackedEditDialog):
@@ -32,7 +32,9 @@ class NewStateDialog(FileBackedEditDialog):
             template_text = NEW_STATE_TEMPLATE.read_text()
         else:
             if not base:
-                raise ValueError(f"'base' is required when using {type(self)} in mode {mode}")
+                raise ValueError(
+                    f"'base' is required when using {type(self)} in mode {mode}"
+                )
             title = f"Edit {base}."
             state_repr = repr(base.value.state)
             # fixme: scenario's repr is broken on UnknownStatus.

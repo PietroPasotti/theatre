@@ -6,15 +6,16 @@ if typing.TYPE_CHECKING:
     from theatre.trace_tree_widget.state_node import StateNode
 
 
-def autolayout(node: "StateNode",
-               align: typing.Literal['top', 'bottom', 'center'] = 'top'):
+def autolayout(
+    node: "StateNode", align: typing.Literal["top", "bottom", "center"] = "top"
+):
     pos = node.pos
     children: typing.Iterable["StateNode"] = node.getOutputs()
     xpos = pos.x() + node.grNode.width * 1.5
     ypos = pos.y()
     vspacing = node.grNode.height * 1.5
 
-    if align == 'top':
+    if align == "top":
         baseline = ypos
     elif align == "center":
         baseline = ypos - vspacing * len(children) / 2

@@ -62,7 +62,9 @@ class StateGraphicsNode(QDMGraphicsNode):
             0,
             0,
             self.width,
-            self.height + self.deltabox_height * n_deltas + self.deltabox_vertical_padding * n_deltas
+            self.height
+            + self.deltabox_height * n_deltas
+            + self.deltabox_vertical_padding * n_deltas,
         ).normalized()
 
     def initUI(self):
@@ -95,10 +97,7 @@ class StateGraphicsNode(QDMGraphicsNode):
             gritem.setDefaultTextColor(self._delta_label_color)
             gritem.setFont(self._delta_label_font)
             gritem.setPos(self.title_horizontal_padding, y)
-            gritem.setTextWidth(
-                self.width
-                - 2 * self.title_horizontal_padding
-            )
+            gritem.setTextWidth(self.width - 2 * self.title_horizontal_padding)
             delta_gr_items.append(gritem)
 
     def paint(self, painter: QPainter, QStyleOptionGraphicsItem, widget=None):
@@ -127,13 +126,17 @@ class StateGraphicsNode(QDMGraphicsNode):
             path_title = QPainterPath()
             path_title.setFillRule(Qt.WindingFill)
 
-            path_title.addRoundedRect(0, y, self.width, dbox_h, self.edge_roundness, self.edge_roundness)
+            path_title.addRoundedRect(
+                0, y, self.width, dbox_h, self.edge_roundness, self.edge_roundness
+            )
             painter.setPen(Qt.NoPen)
             painter.setBrush(self._brush_delta)
             painter.drawPath(path_title.simplified())
 
             path_outline = QPainterPath()
-            path_outline.addRoundedRect(0, y, self.width, dbox_h, self.edge_roundness, self.edge_roundness)
+            path_outline.addRoundedRect(
+                0, y, self.width, dbox_h, self.edge_roundness, self.edge_roundness
+            )
             painter.setBrush(Qt.NoBrush)
             if self.hovered:
                 painter.setPen(self._pen_hovered)
@@ -141,7 +144,9 @@ class StateGraphicsNode(QDMGraphicsNode):
                 painter.setPen(self._pen_default)
                 painter.drawPath(path_outline.simplified())
             else:
-                painter.setPen(self._pen_default if not self.isSelected() else self._pen_selected)
+                painter.setPen(
+                    self._pen_default if not self.isSelected() else self._pen_selected
+                )
                 painter.drawPath(path_outline.simplified())
 
     def hoverEnterEvent(self, event) -> None:

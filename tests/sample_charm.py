@@ -23,6 +23,5 @@ class DummyCharm(ops.CharmBase):
 def charm_context() -> Context:
     return Context(
         charm_type=DummyCharm,
-        meta={'name': 'dummy charm',
-              'requires': {'foo': {'interface': 'bar'}}}
+        meta={"name": "dummy charm", "requires": {"foo": {"interface": "bar"}}},
     )
