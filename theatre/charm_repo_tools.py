@@ -55,6 +55,12 @@ class TheatreState:
             Path(current_scene_path) if current_scene_path else None
         )
 
+    def save(self):
+        self.file.write_text(
+            json.dumps({"current_scene_path": str(self.current_scene_path)})
+        )
+        print(f"saved state to {self.file}")
+
 
 class CharmRepo:
     def __init__(self, path: Path):
@@ -91,6 +97,10 @@ class CharmRepo:
     @property
     def loader_path(self) -> Path:
         return self.theatre_dir / "loader.py"
+
+    @property
+    def scenes_dir(self) -> Path:
+        return self.theatre_dir / "scenes"
 
     def has_loader(self) -> bool:
         return self.loader_path.exists()
@@ -184,10 +194,15 @@ class CharmRepo:
         return load_charm_context(self.root, self.loader_path)
 
     @property
-    def current_scene(self):
+    def current_scene(self) -> Path:
         current_scene_path = self.state.current_scene_path
         if current_scene_path and current_scene_path.exists():
-            return current_scene_path.read_text()
+            return current_scene_path
+
+    @current_scene.setter
+    def current_scene(self, path: Path):
+        self.state.current_scene_path = path
+        self.state.save()
 
 
 def load_charm_context(

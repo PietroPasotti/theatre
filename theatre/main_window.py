@@ -305,6 +305,8 @@ class TheatreMainWindow(NodeEditorWindow):
 
     def getFileDialogDirectory(self):
         """Scene save file directory."""
+        if repo := self._repo:
+            return repo.scenes_dir
         return str(self._app_data_dir / "scenes")
 
     def onFileSaveAs(self):
@@ -316,7 +318,7 @@ class TheatreMainWindow(NodeEditorWindow):
         fname, _ = QFileDialog.getSaveFileName(
             self,
             "Save graph to file",
-            self.getFileDialogDirectory(),
+            str(self.getFileDialogDirectory()),
             SCENE_FILE_TYPE,
             SCENE_FILE_TYPE,
         )
@@ -335,6 +337,10 @@ class TheatreMainWindow(NodeEditorWindow):
         editor.fileSave(fname)
         self.statusBar().showMessage(f"Successfully saved as {fname}", 5000)
         editor.update_title()
+
+        if self._repo:
+            self._repo.current_scene = fname
+
         return True
 
     def get_title(self):
@@ -401,6 +407,7 @@ class TheatreMainWindow(NodeEditorWindow):
         # select a scene to open
         previous_scene = repo.current_scene
         if previous_scene:
+            logger.info(f"resuming previous scene from state: {previous_scene}")
             self.open_if_not_already_open(previous_scene)
 
     def getFileDialogFilter(self):
