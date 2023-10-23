@@ -492,6 +492,7 @@ def add_simulated_fs_from_repo(
 
             # copy previous fs state into new mount location.
             # charm exec may mutate it!
+            # FIXME: mount is a dict in some circumstances?!
             copytree(mount.src, new_src, dirs_exist_ok=True)
 
             new_mount = mount.replace(src=new_src)
