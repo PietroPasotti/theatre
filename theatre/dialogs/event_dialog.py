@@ -29,9 +29,10 @@ from scenario.state import (
     PEBBLE_READY_EVENT_SUFFIX,
     RELATION_EVENTS_SUFFIX,
     STORAGE_EVENTS_SUFFIX,
+    SECRET_EVENTS,
 )
 
-from theatre.helpers import get_icon
+from theatre.helpers import get_icon, get_event_icon
 from theatre.logger import logger as theatre_logger
 
 logger = theatre_logger.getChild(__file__)
@@ -41,25 +42,17 @@ if typing.TYPE_CHECKING:
 
 LIFECYCLE_EVENTS = (
     # "collect-metrics",
-    "config-changed",
+    "config_changed",
     "install",
-    "leader-elected",
-    "leader-settings-changed",
-    "post-series-upgrade",
-    "pre-series-upgrade",
+    "leader_elected",
+    "leader_settings_changed",
+    "post_series_upgrade",
+    "pre_series_upgrade",
     "remove",
     "start",
     "stop",
-    "update-status",
-    "upgrade-charm",
-)
-
-# fixme: when scenario 4.0 lands, replace with scenario.state.SECRET_EVENTS
-SECRET_EVENTS = (
-    "secret-changed",
-    "secret-expired",
-    "secret-remove",
-    "secret-rotate",
+    "update_status",
+    "upgrade_charm",
 )
 
 
@@ -201,54 +194,66 @@ class EventMenu(QMenu):
         self, parent: typing.Optional["QWidget"], charm_spec: "_CharmSpec"
     ) -> None:
         super().__init__(parent)
-        lifecycle = self.addMenu("lifecycle")
-        secret = self.addMenu("secret")
+        lifecycle = self.addMenu(get_icon("cycle"), "lifecycle")
+        secret = self.addMenu(get_icon("lock"), "secret")
         # self._ops = ops = self.addMenu("ops")
 
-        for e in LIFECYCLE_EVENTS:
-            lifecycle.addAction(e)
+        for evt in LIFECYCLE_EVENTS:
+            lifecycle.addAction(get_event_icon(evt), evt)
 
-        for e in SECRET_EVENTS:
-            secret.addAction(e)
+        for evt in SECRET_EVENTS:
+            secret.addAction(get_event_icon(evt), evt)
 
         # Dynamically defined builtin events
-        relations = tuple(
-            chain(
-                charm_spec.meta.get("requires", ()),
-                charm_spec.meta.get("provides", ()),
-                charm_spec.meta.get("peers", ()),
-            )
-        )
-        if relations:
-            relation_menu = self.addMenu("relation")
-            for relation_name in relations:
-                relation_submenu = relation_menu.addMenu(relation_name)
-                relation_name = relation_name.replace("-", "_")
-                for relation_evt_suffix in RELATION_EVENTS_SUFFIX:
-                    relation_submenu.addAction(relation_name + relation_evt_suffix)
+        _relations_menu = None
+        for rel_type, icon_name in [
+            ("requires", "arrow_back"),
+            ("provides", "arrow_forward"),
+            ("peers", "compare_arrows"),
+        ]:
+            relations = charm_spec.meta.get(rel_type, ())
+            submenu_icon = get_icon(icon_name)
+            if relations:
+
+                relation_menu = _relations_menu or self.addMenu(
+                    get_icon("compare_arrows"), "relation"
+                )
+                _relations_menu = relation_menu
+
+                for relation_name in relations:
+                    relation_submenu = relation_menu.addMenu(
+                        submenu_icon, relation_name
+                    )
+                    relation_name = relation_name.replace("-", "_")
+                    for relation_evt_suffix in RELATION_EVENTS_SUFFIX:
+                        evt = relation_name + relation_evt_suffix
+                        relation_submenu.addAction(get_event_icon(evt), evt)
 
         storages = charm_spec.meta.get("storages")
         if storages:
-            storage_menu = self.addMenu("storage")
+            storage_menu = self.addMenu(get_icon("hard_drive"), "storage")
             for storage_name in storages:
                 storage_submenu = storage_menu.addMenu(storage_name)
                 storage_name = storage_name.replace("-", "_")
                 for storage_evt_suffix in STORAGE_EVENTS_SUFFIX:
-                    storage_submenu.addAction(storage_name + storage_evt_suffix)
+                    evt = storage_name + storage_evt_suffix
+                    storage_submenu.addAction(get_event_icon(evt), evt)
 
         actions = charm_spec.actions
         if actions:
             actions_menu = self.addMenu("actions")
             for action_name in actions:
                 action_name = action_name.replace("-", "_")
-                actions_menu.addAction(action_name + ACTION_EVENT_SUFFIX)
+                evt = action_name + ACTION_EVENT_SUFFIX
+                actions_menu.addAction(get_event_icon(evt), evt)
 
         workloads = charm_spec.meta.get("containers")
         if workloads:
             workload_menu = self.addMenu("workload")
             for container_name in workloads:
                 container_name = container_name.replace("-", "_")
-                workload_menu.addAction(container_name + PEBBLE_READY_EVENT_SUFFIX)
+                evt = container_name + PEBBLE_READY_EVENT_SUFFIX
+                workload_menu.addAction(get_event_icon(evt), evt)
 
 
 class EventSelector(QWidget):
@@ -322,6 +327,9 @@ class EventPicker(QDialog):
         self.close()
 
     def get_event(self) -> EventSpec:
+        if not self.confirmed:
+            raise RuntimeError("unconfirmed dialog.")
+
         return EventSpec(
             Event(self.event_config.event_name),
             env=self.event_config.get_output()[

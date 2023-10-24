@@ -5,7 +5,9 @@ import os
 import sys
 import types
 import typing
+import urllib
 from pathlib import Path
+from urllib import request
 
 from PyQt5.QtGui import QImage
 from qtpy.QtCore import QObject
@@ -90,6 +92,14 @@ def colorized(name: str, color: QColor, res: int = 500):
     return QIcon(pxmp)
 
 
+def download_icon(name: str, filename: Path, opsz=24):
+    """Atttempt to download material icon."""
+    url = f"https://fonts.gstatic.com/s/i/short-term/release/materialsymbolsoutlined/{name}/default/{opsz}px.svg"
+    out = request.urlopen(url).read()
+    filename.write_bytes(out)
+    logger.info(f"auto-downloaded material icon {name}")
+
+
 def get_icon(
     name: str, color: ColorType | None = None, path=("icons",), suffix: str = "svg"
 ) -> QIcon:
@@ -98,11 +108,59 @@ def get_icon(
 
     path = RESOURCES_DIR.joinpath(*path) / name
     filename = path.with_suffix(f".{suffix}")
+
     if not filename.exists():
-        raise ValueError(name)
+        try:
+            download_icon(name, filename)
+        except request.HTTPError:
+            logger.error(f"material icon {name} could not be downloaded")
+            return get_icon("bolt")
 
     abspath_str = str(filename.absolute())
     return QIcon(abspath_str)
+
+
+_EVENT_SUFFIX_TO_ICON_NAME = {
+    # lifecycle events
+    "start": "start",
+    "install": "download",
+    "config_changed": "instant_mix",
+    "stop": "close",
+    "remove": "delete",
+    "leader_elected": "footprint",
+    "leader_settings_changed": "barefoot",
+    "post_series_upgrade": "system_update_alt",
+    "pre_series_upgrade": "system_update_alt",
+    "update_status": "update",
+    "upgrade_charm": "work_update",
+    # storage events
+    "storage_attached": "cloud_done",
+    "storage_detaching": "thunderstorm",
+    # secret events
+    "secret_changed": "lock",
+    "secret_rotate": "lock_reset",
+    "secret_removed": "no_encryption",
+    "secret_expired": "timer_off",
+    # relation events
+    "relation_joined": "join",
+    "relation_broken": "heart_broken",
+    "relation_departed": "flight_takeoff",
+    "relation_created": "heart_plus",
+    "relation_changed": "tune",
+    # workload events
+    "pebble_ready": "package_2",
+}
+_DEFAULT_EVENT_ICON_NAME = "line_start"
+
+
+def get_event_icon(event_name: str):
+    """Helper to obtain icons for events."""
+    bare = _EVENT_SUFFIX_TO_ICON_NAME.get(event_name)
+    if bare:
+        return get_icon(bare)
+
+    suffix = "_".join(event_name.split("_")[-2:])
+    return get_icon(_EVENT_SUFFIX_TO_ICON_NAME.get(suffix, _DEFAULT_EVENT_ICON_NAME))
 
 
 def toggle_visible(obj: QObject):
