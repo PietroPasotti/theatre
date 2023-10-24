@@ -1,9 +1,7 @@
 # Copyright 2022 Canonical Ltd.
 # See LICENSE file for licensing details.
 import typing
-from dataclasses import dataclass
 
-from qtpy.QtGui import QIcon
 from qtpy import QtGui
 from qtpy.QtWidgets import (
     QDialog,
@@ -12,9 +10,6 @@ from qtpy.QtWidgets import (
     QLabel,
     QVBoxLayout,
 )
-
-from theatre.helpers import get_icon, show_error_dialog
-from theatre.logger import logger
 
 
 class RelationPickerDialog(QDialog):

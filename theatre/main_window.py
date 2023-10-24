@@ -12,7 +12,6 @@ from qtpy.QtCore import QSettings, QSignalMapper, Qt
 from qtpy.QtGui import QKeySequence
 from qtpy.QtWidgets import (
     QAction,
-    QApplication,
     QDockWidget,
     QFileDialog,
     QMdiArea,
@@ -31,7 +30,6 @@ from theatre.trace_tree_widget.library_widget import Library
 from theatre.trace_tree_widget.node_editor_widget import NodeEditorWidget
 
 if typing.TYPE_CHECKING:
-    from nodeeditor.node_editor_widget import NodeEditorWidget
     from scenario import Context
     from scenario.state import _CharmSpec
 
@@ -324,7 +322,7 @@ class TheatreMainWindow(NodeEditorWindow):
         )
 
         if not fname:
-            print(f"no filename selected. Aborting save.")
+            print("no filename selected. Aborting save.")
             return False
 
         if not fname.endswith(SCENE_EXTENSION):

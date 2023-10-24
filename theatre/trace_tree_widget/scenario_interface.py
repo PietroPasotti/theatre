@@ -1,7 +1,7 @@
 # Copyright 2022 Canonical Ltd.
 # See LICENSE file for licensing details.
 import contextlib
-from typing import Any, Callable, Tuple
+from typing import Any, Tuple
 
 import scenario
 from scenario import Action, Event, State

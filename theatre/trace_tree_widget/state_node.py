@@ -4,7 +4,6 @@ import tempfile
 import typing
 from dataclasses import asdict
 from itertools import count
-from pathlib import Path
 from shutil import copytree
 
 import scenario
@@ -149,7 +148,7 @@ class StateNode(Node):
 
     def getSocketPosition(
         self, index: int, position: int, num_out_of: int = 1
-    ) -> "(x, y)":
+    ) -> typing.List[float]:
         if index == 0:
             return super().getSocketPosition(index, position, num_out_of)
         return self._get_delta_socket_position(index)

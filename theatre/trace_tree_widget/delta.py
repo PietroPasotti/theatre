@@ -19,7 +19,7 @@ NEWDELTACTR = count()
 
 class DeltaSocket(Socket):
     def __repr__(self):
-        return f"<DeltaSocket>"
+        return "<DeltaSocket>"
 
 
 @dataclass
@@ -100,10 +100,6 @@ class DeltaNode:
 
     def isDirty(self):
         return self._base_node.isDirty()
-
-    @property
-    def grNode(self):
-        return self._base_node.grNode
 
     @property
     def edge_in(self):

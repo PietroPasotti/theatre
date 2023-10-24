@@ -8,9 +8,10 @@ from theatre.dialogs.file_backed_edit_dialog import TEMPLATES_DIR, FileBackedEdi
 from theatre.helpers import load_module
 from theatre.logger import logger
 
-DELTA_TEMPLATE = TEMPLATES_DIR / "delta_template.py"
-
 from theatre.trace_tree_widget.delta import Delta
+
+
+DELTA_TEMPLATE = TEMPLATES_DIR / "delta_template.py"
 
 
 @dataclass

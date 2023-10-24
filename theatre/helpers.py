@@ -1,11 +1,9 @@
 # Copyright 2022 Canonical Ltd.
 # See LICENSE file for licensing details.
 import importlib
-import os
 import sys
 import types
 import typing
-import urllib
 from pathlib import Path
 from urllib import request
 

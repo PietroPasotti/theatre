@@ -4,7 +4,6 @@ import json
 import os
 import typing
 from functools import partial
-from itertools import chain
 from pathlib import Path
 
 from nodeeditor.node_edge import EDGE_TYPE_DEFAULT
@@ -325,7 +324,6 @@ class NodeEditorWidget(_NodeEditorWidget):
             (SUBTREE_SPEC_MIMETYPE, self._drop_subtree),
             (DYNAMIC_SUBTREE_SPEC_MIMETYPE, self._drop_dynamic_subtree),
         ):
-
             if mime_data.hasFormat(mimetype):
                 event_data = mime_data.data(mimetype)
                 data_stream = QDataStream(event_data, QIODevice.ReadOnly)
@@ -603,14 +601,7 @@ class NodeEditorWidget(_NodeEditorWidget):
         filename = DYNAMIC_SUBTREES_TEMPLATES_DIR / "relation_lifecycle.theatre"
         text = filename.read_text().replace("{relation_name}", relation.endpoint)
         obj = json.loads(text)
-        new_nodes = self._paste_subtree(start, obj)
-        # we need to inject the relation into each event edge
-        # for node in new_nodes:
-        #     edge_in = node.edge_in
-        #     event_spec = edge_in.event_spec
-        #     event_spec.event = event_spec.event.replace(relation=relation)
-        #     # silently update
-        #     edge_in.set_event_spec(event_spec)
+        self._paste_subtree(start, obj)
 
     def _paste_subtree(
         self, start: StateNode, data: SerializedScene

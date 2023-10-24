@@ -2,16 +2,13 @@
 # See LICENSE file for licensing details.
 import typing
 from dataclasses import dataclass
-from itertools import chain
 
-from PyQt5 import QtCore
 from PyQt5.QtGui import QCursor
 from PyQt5.QtWidgets import QMenu
 from qtpy import QtGui
 from qtpy.QtCore import Signal
 from qtpy.QtGui import QFont, QIntValidator
 from qtpy.QtWidgets import (
-    QComboBox,
     QDialog,
     QDialogButtonBox,
     QHBoxLayout,
@@ -214,7 +211,6 @@ class EventMenu(QMenu):
             relations = charm_spec.meta.get(rel_type, ())
             submenu_icon = get_icon(icon_name)
             if relations:
-
                 relation_menu = _relations_menu or self.addMenu(
                     get_icon("compare_arrows"), "relation"
                 )

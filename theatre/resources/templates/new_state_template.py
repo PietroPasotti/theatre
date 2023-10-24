@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 from ops import UnknownStatus
+from scenario import Model, State
 from scenario import *
 
 # Fill in your state.

@@ -3,7 +3,7 @@ from pathlib import Path
 from typing import Dict, Optional, Tuple
 
 import yaml
-from scenario import Context, Mount, State
+from scenario import Context, Mount
 
 from theatre.config import TEMPLATES_DIR
 from theatre.helpers import load_module
@@ -138,7 +138,7 @@ class CharmRepo:
                     mounts = yaml.safe_load(spec_yaml.read_text())[container.name][
                         "mounts"
                     ]
-                except (yaml.YAMLError, KeyError) as e:
+                except (yaml.YAMLError, KeyError):
                     logger.error(
                         f"spec.yaml does not contain a "
                         f"mounts definition for {container.name}",
