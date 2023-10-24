@@ -125,7 +125,7 @@
             "end": 140079519169744,
             "event_spec": {
                 "event": {
-                    "name": "{relation_name}_relation_created",
+                    "path": "{relation_name}_relation_created",
                     "args": [],
                     "kwargs": {},
                     "relation": null,
@@ -144,7 +144,7 @@
             "end": 140079523387152,
             "event_spec": {
                 "event": {
-                    "name": "{relation_name}_relation_joined",
+                    "path": "{relation_name}_relation_joined",
                     "args": [],
                     "kwargs": {},
                     "relation": null,
@@ -163,7 +163,7 @@
             "end": 140079519114064,
             "event_spec": {
                 "event": {
-                    "name": "{relation_name}_relation_changed",
+                    "path": "{relation_name}_relation_changed",
                     "args": [],
                     "kwargs": {},
                     "relation": null,

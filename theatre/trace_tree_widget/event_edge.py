@@ -195,14 +195,24 @@ class EventEdge(_Edge):
 
     def deserialize(
         self, data: dict, hashmap: dict = {}, restore_id: bool = True, *args, **kwargs
-    ) -> bool:
+    ):
+        super().deserialize(data, hashmap, restore_id, *args, **kwargs)
+
         evt_spec = data.get("event_spec", None)
         if evt_spec:
             # TODO: Relation Events and the like will need a reference to
             #  the Relation object which is stored in the parent state!
             event = parse_event(evt_spec["event"])
-            self.set_event_spec(EventSpec(event, evt_spec["env"]))
-        return super().deserialize(data, hashmap, restore_id, *args, **kwargs)
+            parent_node = self.start_node
+            if not parent_node.value:
+                logger.info(
+                    "start node is not evaluated: "
+                    "force-evaluating it now as we need the state to bind the event to."
+                )
+                parent_node.eval()
+            parent_state = parent_node.value.state
+            closed_event = event.bind(parent_state)
+            self.set_event_spec(EventSpec(closed_event, evt_spec["env"]))
 
 
 EventEdge.registerEdgeValidator(edge_validator_debug)

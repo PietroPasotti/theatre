@@ -219,7 +219,8 @@ class StateNode(Node):
         self.content = StateContent(self, title=self.title)
         self.content.clicked.connect(self._on_content_clicked)
         self.grNode = StateGraphicsNode(self)
-        self.grNode.setToolTip("Click to evaluate.")
+
+        self.grNode.setToolTip(self.title)
         self.content.edit.textChanged.connect(self.on_description_changed)
 
     def _on_content_clicked(self):
@@ -252,15 +253,19 @@ class StateNode(Node):
             return None
 
     def get_title(self):
-        title = []
+        title = self.title.title()
+        qualifiers = []
         if self._is_custom:
-            title.append("Custom")
+            qualifiers.append("custom")
         if self._is_null:
-            title.append("Null")
-        title.append("State")
+            qualifiers.append("null")
         if self.is_root:
-            title.append("(root)")
-        return " ".join(title)
+            qualifiers.append("root")
+        if self.value:
+            qualifiers.append("evaluated")
+        else:
+            qualifiers.append("no value")
+        return f"{title} ({', '.join(qualifiers)})"
 
     def _update_title(self):
         self.grNode.title = self.get_title()
@@ -358,7 +363,7 @@ class StateNode(Node):
         self.value = new_value
 
         # todo find better tooltip
-        self.grNode.setToolTip(str(new_value.state))
+        self.grNode.setToolTip(self.get_title())
 
         # notify listeners of potential value change
         self.scene.state_node_changed.emit(self)

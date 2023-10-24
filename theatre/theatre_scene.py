@@ -220,6 +220,7 @@ class TheatreScene(QObject, _Scene):
         return True
 
     def get_node_at(self, pos: QPoint) -> StateNode | None:
+        # TODO: should be extended to also return a delta label if found
         nearest = self.find_nearest_parent_at(
             pos, (GraphicsSocket, StateContent, StateGraphicsNode, DeltaLabel)
         )

@@ -5,6 +5,7 @@ from typing import Any, Callable, Tuple
 
 import scenario
 from scenario import Action, Event, State
+from scenario.state import BindFailedError
 
 from theatre.logger import logger as theatre_logger
 from theatre.trace_tree_widget.structs import StateNodeOutput
@@ -35,33 +36,6 @@ def capture_output() -> Tuple[Any, str]:
         yield stdout_buffer
 
 
-def close_event(event: Event, state: State):
-    """Attempt to autofill missing event metadata."""
-    try:
-        if event._is_workload_event:
-            if event.container:
-                return event
-            return event.replace(
-                container=state.get_container(event.name[: -len("-pebble-ready")])
-            )
-
-        elif event._is_relation_event:
-            if event.relation:
-                return event
-
-            # actually kind of hard.
-            raise NotImplementedError()
-
-    except Exception:
-        logger.error(exc_info=True)
-        logger.warning(
-            f"failure closing {event}: expect scenario inconsistency errors."
-            f"Please fill the missing metadata manually."
-        )
-
-    return event
-
-
 def run_scenario(context: scenario.Context, state: State, event: Event):
     with capture_output() as stdout:
         if event._is_action_event:
@@ -70,6 +44,10 @@ def run_scenario(context: scenario.Context, state: State, event: Event):
             action_out = context.run_action(state=state, action=action)
             state_out = action_out.state
         else:
-            closed_event = close_event(event, state)
+            try:
+                closed_event = event.bind(state)
+            except BindFailedError:
+                logger.debug("bind failed: might get an inconsistent scenario error")
+                closed_event = event
             state_out = context.run(state=state, event=closed_event)
     return StateNodeOutput(state_out, context.juju_log, stdout)

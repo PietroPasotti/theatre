@@ -4,6 +4,7 @@ import json
 import os
 import typing
 from functools import partial
+from itertools import chain
 from pathlib import Path
 
 from nodeeditor.node_edge import EDGE_TYPE_DEFAULT
@@ -19,10 +20,11 @@ from qtpy.QtGui import QDragMoveEvent, QMouseEvent, QWheelEvent
 from qtpy.QtWidgets import QAction, QGraphicsProxyWidget, QMenu, QVBoxLayout
 from scenario import Event, Relation, State
 
+from theatre.dialogs.relation_picker import RelationPickerDialog
 from theatre.dialogs.event_dialog import LIFECYCLE_EVENTS, EventPicker, EventSpec
 from theatre.dialogs.file_backed_edit_dialog import Intent
 from theatre.dialogs.new_state import NewStateDialog
-from theatre.helpers import get_icon
+from theatre.helpers import get_icon, show_error_dialog
 from theatre.logger import logger
 from theatre.theatre_scene import SerializedScene, TheatreScene
 from theatre.trace_tree_widget.event_edge import EventEdge
@@ -315,6 +317,7 @@ class NodeEditorWidget(_NodeEditorWidget):
         mime_data: QMimeData = event.mimeData()
 
         # TODO: if we're dropping something on a Delta...
+        #  will require extending theatre_scene.TheatreScene.get_node_at
 
         for mimetype, drop_handler_method in (
             (STATE_SPEC_MIMETYPE, self._drop_node),
@@ -550,12 +553,48 @@ class NodeEditorWidget(_NodeEditorWidget):
 
         autolayout(start, align="center")
 
-    def _choose_relation(self, node: StateNode) -> Relation:
-        return Relation("foo", relation_id=0)
+    def _choose_relation(self, node: StateNode) -> typing.Optional[Relation]:
+        relations = {
+            f"{r.endpoint}:{r.relation_id}": r for r in node.value.state.relations
+        }
+        logger.info(f"opening relation picker; choices: {relations.keys()}")
+        picker = RelationPickerDialog(self, options=relations)
+        picker.exec()
+        out = picker.finalize()
+        if out is None:
+            logger.info("relation picker not confirmed")
+            return None
+        return relations[out]
 
     def _extend_with_relation_lifecycle(self, start: StateNode):
         """Generate a subtree for a standard relation lifecycle."""
-        relation = self._choose_relation(start)
+        if not start.value:
+            logger.info(
+                "selected start node not evaluated yet; force-evaluating it now..."
+            )
+            try:
+                start.eval()
+            except Exception:
+                logger.error(
+                    f"failed to evaluate start node {start}: "
+                    f"aborting relation lifecycle subtree creation.",
+                    exc_info=True,
+                )
+                return
+
+        if not start.value.state.relations:
+            msg = "start node has no relations. Relation lifecycle macro requires some relation to be present."
+            logger.error(msg)
+            show_error_dialog(self, msg)
+            return
+
+        if len(start.value.state.relations) == 1:
+            logger.info(
+                "start node has exactly one relation: expanding lifecycle on that one."
+            )
+            relation = start.value.state.relations[0]
+        else:
+            relation = self._choose_relation(start)
 
         if not relation:
             logger.error("no relation name chosen; aborting")
@@ -566,12 +605,12 @@ class NodeEditorWidget(_NodeEditorWidget):
         obj = json.loads(text)
         new_nodes = self._paste_subtree(start, obj)
         # we need to inject the relation into each event edge
-        for node in new_nodes:
-            edge_in = node.edge_in
-            event_spec = edge_in.event_spec
-            event_spec.event = event_spec.event.replace(relation=relation)
-            # silently update
-            edge_in.set_event_spec(event_spec)
+        # for node in new_nodes:
+        #     edge_in = node.edge_in
+        #     event_spec = edge_in.event_spec
+        #     event_spec.event = event_spec.event.replace(relation=relation)
+        #     # silently update
+        #     edge_in.set_event_spec(event_spec)
 
     def _paste_subtree(
         self, start: StateNode, data: SerializedScene
