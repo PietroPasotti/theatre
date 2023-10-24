@@ -316,14 +316,17 @@ class StateNode(Node):
 
     def onInputChanged(self, socket: "Socket"):
         super().onInputChanged(socket)
+
         if GREEDY_NODE_EVALUATION:
             self.eval()
 
-        # if this is a result of a new edge being dropped onto our input socket,
-        # the previous edge is spec-less.
-        if not self.edge_in.is_event_spec_set:
-            spec = self.scene.main_window.current_node_editor.choose_event()
-            self.edge_in.set_event_spec(spec)
+        edge_in = self.edge_in
+        if edge_in:
+            # if this is a result of a new edge being dropped onto our input socket,
+            # the previous edge is spec-less.
+            if not edge_in.is_event_spec_set:
+                spec = self.scene.main_window.current_node_editor.choose_event()
+                edge_in.set_event_spec(spec)
 
     def open_edit_dialog(self, parent: QWidget = None):
         dialog = new_state.NewStateDialog(parent, mode=new_state.Mode.edit, base=self)

@@ -228,7 +228,7 @@ class NodeEditorWidget(_NodeEditorWidget):
         target_socket = new_state_node.input_socket
 
         # create a new edge
-        EventEdge(
+        _new_edge = EventEdge(
             scene,
             dragging.drag_start_socket,
             target_socket,
@@ -561,8 +561,8 @@ class NodeEditorWidget(_NodeEditorWidget):
         picker = RelationPickerDialog(self, options=relations)
         picker.exec()
         out = picker.finalize()
-        if out is None:
-            logger.info("relation picker not confirmed")
+        if not out:
+            logger.info("relation picker not confirmed or aborted")
             return None
         return relations[out]
 

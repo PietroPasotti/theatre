@@ -25,6 +25,8 @@ if typing.TYPE_CHECKING:
 
     from theatre.theatre_scene import TheatreScene
     from theatre.trace_tree_widget.state_node import StateNode
+    from theatre.trace_tree_widget.delta import DeltaNode
+    from theatre.trace_tree_widget.delta import DeltaSocket
 
 
 logger = theatre_logger.getChild("event_edge")
@@ -70,7 +72,7 @@ class EventEdge(_Edge):
     def __init__(
         self,
         scene: "TheatreScene",
-        start_socket: "Socket" = None,
+        start_socket: typing.Union["Socket", "DeltaSocket"] = None,
         end_socket: "Socket" = None,
         edge_type=EDGE_TYPE_DIRECT,
         event_spec: typing.Optional[EventSpec] = None,
@@ -131,10 +133,12 @@ class EventEdge(_Edge):
         )
 
     @property
-    def start_node(self) -> "StateNode":
+    def start_node(self) -> typing.Union["StateNode", "DeltaNode"]:
         if not self.start_socket:
             raise RuntimeError("no start node: is this edge still being dragged?")
-        return typing.cast("StateNode", self.start_socket.node)
+        return typing.cast(
+            typing.Union["StateNode", "DeltaNode"], self.start_socket.node
+        )
 
     @property
     def end_node(self) -> "StateNode":
@@ -203,16 +207,8 @@ class EventEdge(_Edge):
             # TODO: Relation Events and the like will need a reference to
             #  the Relation object which is stored in the parent state!
             event = parse_event(evt_spec["event"])
-            parent_node = self.start_node
-            if not parent_node.value:
-                logger.info(
-                    "start node is not evaluated: "
-                    "force-evaluating it now as we need the state to bind the event to."
-                )
-                parent_node.eval()
-            parent_state = parent_node.value.state
-            closed_event = event.bind(parent_state)
-            self.set_event_spec(EventSpec(closed_event, evt_spec["env"]))
+            # we can't bind the event now because we can't guarantee the parent is evaluated yet
+            self.set_event_spec(EventSpec(event, evt_spec["env"]))
 
 
 EventEdge.registerEdgeValidator(edge_validator_debug)

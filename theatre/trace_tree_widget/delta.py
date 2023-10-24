@@ -12,16 +12,14 @@ from theatre.trace_tree_widget.state_bases import Socket
 from theatre.trace_tree_widget.structs import StateNodeOutput
 
 if typing.TYPE_CHECKING:
-    from theatre.trace_tree_widget.state_node import (
-        StateNode,
-        add_simulated_fs_from_repo,
-    )
+    from theatre.trace_tree_widget.state_node import StateNode
 
 NEWDELTACTR = count()
 
 
 class DeltaSocket(Socket):
-    pass
+    def __repr__(self):
+        return f"<DeltaSocket>"
 
 
 @dataclass
@@ -34,14 +32,27 @@ class DeltaNode:
     def __init__(self, node: "StateNode", delta: Delta):
         self._base_node = node
         self._delta = delta
-        self._cached_value = None
+
+        self._value_cache: typing.Optional[StateNodeOutput] = None
+
+    @property
+    def value(self):
+        cache = self._value_cache
+        if not cache:
+            raise ValueError("not evaluated yet")
+        return cache
+
+    @property
+    def name(self):
+        return self._delta.name
 
     def __repr__(self):
         return f"<DeltaNode {self._delta.name}>"
 
-    def __getattr__(self, item):
-        # proxy all node calls
-        return getattr(self._base_node, item)
+    # override this StateNode call since this delta's previous is this delta's base node,
+    # not this base node's
+    def get_previous(self) -> "StateNode":
+        return self._base_node
 
     def _get_parent_output(self) -> StateNodeOutput:
         """Get the output of the previous node."""
@@ -51,7 +62,7 @@ class DeltaNode:
 
         if not isinstance(deltaed_state, State):
             raise RuntimeError(
-                f"Applying {self.delta} to {base_node_output.state} "
+                f"Applying {self._delta} to {base_node_output.state} "
                 f"yielded {type(deltaed_state)} "
                 f"instead of scenario.State."
             )
@@ -59,14 +70,48 @@ class DeltaNode:
         return StateNodeOutput(state=deltaed_state)
 
     def eval(self) -> StateNodeOutput:
+        if self.isDirty():
+            # invalidate our cache too
+            self._value_cache = None
+
+        if not self._value_cache:
+            value = self._evaluate()
+            self._value_cache = value
+
+        return self._value_cache
+
+    def _evaluate(self):
         parent_output = self._get_parent_output()
         edge_in = self.edge_in
         if not edge_in:
             # root node! return unmodified state
             return parent_output
 
-        logger.info(f"{'re' if self.value else ''}computing state on {self}")
+        logger.info(f"{'re' if self._value_cache else ''}computing state on {self}")
         # the parent node is deltae'd
         return run_scenario(
             self.scene.context, parent_output.state, self.edge_in.event_spec.event
         )
+
+    # properties we pass through to parent node
+    @property
+    def grNode(self):
+        return self._base_node.grNode
+
+    def isDirty(self):
+        return self._base_node.isDirty()
+
+    @property
+    def grNode(self):
+        return self._base_node.grNode
+
+    @property
+    def edge_in(self):
+        return self._base_node.edge_in
+
+    @property
+    def scene(self):
+        return self._base_node.scene
+
+    def getSocketPosition(self, *args, **kwargs):
+        return self._base_node.getSocketPosition(*args, **kwargs)

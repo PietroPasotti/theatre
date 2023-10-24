@@ -14,17 +14,18 @@ from theatre.helpers import get_color, get_icon, toggle_visible
 from theatre.logger import logger
 from theatre.trace_tree_widget.state_node import ParentEvaluationFailed, StateNode
 from theatre.trace_tree_widget.structs import StateNodeOutput
+from theatre.trace_tree_widget.delta import DeltaNode
 
 if typing.TYPE_CHECKING:
     from theatre.trace_tree_widget.event_edge import EventEdge
 
-_Trace = typing.List[StateNode]
+_Trace = typing.List[typing.Union[StateNode, DeltaNode]]
 
 
-def get_trace(state: StateNode) -> _Trace:
-    trace = [state]
-    while state := state.get_previous():
-        trace.insert(0, state)
+def get_trace(leaf: StateNode) -> _Trace:
+    trace = [leaf]
+    while leaf := leaf.get_previous():
+        trace.insert(0, leaf)
     return trace
 
 
@@ -66,6 +67,12 @@ class TraceView(QListView):
         item.setData(state_node)
         return item
 
+    def _as_delta_item(self, node: "DeltaNode") -> QStandardItem:
+        item = QStandardItem(get_icon("layers"), node.name)
+        item.setData(node, Qt.ItemDataRole.UserRole + 1)
+        item.setEnabled(False)
+        return item
+
     def _as_event_item(self, event: "EventEdge") -> QStandardItem:
         item = QStandardItem(event.icon, event.event_spec.event.name)
         item.setData(event, Qt.ItemDataRole.UserRole + 1)
@@ -79,9 +86,14 @@ class TraceView(QListView):
         root = trace[0]
         model.appendRow(self._as_state_item(root))
 
-        for state in trace[1:]:
-            model.appendRow(self._as_event_item(state.edge_in))
-            model.appendRow(self._as_state_item(state))
+        for node in trace[1:]:
+            if isinstance(node, StateNode):
+                model.appendRow(self._as_event_item(node.edge_in))
+                model.appendRow(self._as_state_item(node))
+            elif isinstance(node, DeltaNode):
+                model.appendRow(self._as_delta_item(node))
+            else:
+                logger.error(f"cannot display {node}: unknown type {type(node)}")
 
 
 class StateNodeUnsetError(RuntimeError):
