@@ -40,7 +40,7 @@ Dynamic subtrees
 
 Theatre has a _Library_ feature, that allows you to drop into a tree a few built-in objects (and in the future, who knows, maybe your own custom ones). 
 
-![library-pic.png](theatre%2Fresources%2Fbranding%library-pic.png)
+![library-pic.png](theatre%2Fresources%2Fbranding%2Flibrary-pic.png)
 
 There are four types of objects in the library:
 - **static nodes**: these are hardcoded simple nodes, such as the null state node, or the 'leader state', where the state is equivalent to `State(leader=True)`.
