@@ -29,7 +29,7 @@ from scenario.state import (
     SECRET_EVENTS,
 )
 
-from theatre.helpers import get_icon, get_event_icon
+from theatre.helpers import get_icon, get_event_icon, show_error_dialog
 from theatre.logger import logger as theatre_logger
 
 logger = theatre_logger.getChild(__file__)
@@ -319,6 +319,10 @@ class EventPicker(QDialog):
         self.close()
 
     def on_confirm(self, _=None):
+        if not self.event_config.event_name:
+            show_error_dialog(self, "Event name empty.")
+            return
+
         self.confirmed = True
         self.close()
 

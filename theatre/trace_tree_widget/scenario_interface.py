@@ -47,7 +47,7 @@ def run_scenario(context: scenario.Context, state: State, event: Event):
             try:
                 closed_event = event.bind(state)
             except BindFailedError:
-                logger.debug("bind failed: might get an inconsistent scenario error")
+                logger.error("bind failed: might get an inconsistent scenario error!")
                 closed_event = event
             state_out = context.run(state=state, event=closed_event)
     return StateNodeOutput(state_out, context.juju_log, stdout)
