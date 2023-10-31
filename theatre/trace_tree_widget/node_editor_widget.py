@@ -580,6 +580,16 @@ class NodeEditorWidget(_NodeEditorWidget):
                 )
                 return
 
+        if not start.value.state:
+            logger.error(
+                "start node has no state even after evaluating it. "
+                "Something went wrong, but either way we can't proceed."
+            )
+            show_error_dialog(
+                self, "Parent node evaluation failed. Fix it before proceeding."
+            )
+            return
+
         if not start.value.state.relations:
             msg = "start node has no relations. Relation lifecycle macro requires some relation to be present."
             logger.error(msg)

@@ -237,7 +237,7 @@ class EventMenu(QMenu):
 
         actions = charm_spec.actions
         if actions:
-            actions_menu = self.addMenu("actions")
+            actions_menu = self.addMenu(get_icon("handyman"), "actions")
             for action_name in actions:
                 action_name = action_name.replace("-", "_")
                 evt = action_name + ACTION_EVENT_SUFFIX
@@ -245,7 +245,7 @@ class EventMenu(QMenu):
 
         workloads = charm_spec.meta.get("containers")
         if workloads:
-            workload_menu = self.addMenu("workload")
+            workload_menu = self.addMenu(get_icon("cloud_circle"), "workload")
             for container_name in workloads:
                 container_name = container_name.replace("-", "_")
                 evt = container_name + PEBBLE_READY_EVENT_SUFFIX
