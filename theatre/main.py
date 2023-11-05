@@ -24,6 +24,8 @@ def show_main_window(cwd: Path = None):
     else:
         window.show()
 
+    cwd = cwd or Path(os.getcwd())
+
     if cwd:
         repo = CharmRepo(cwd)
 

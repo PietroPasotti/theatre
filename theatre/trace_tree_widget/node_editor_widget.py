@@ -6,7 +6,7 @@ import typing
 from functools import partial
 from pathlib import Path
 
-from PyQt5.QtGui import QKeyEvent
+from qtpy.QtGui import QKeyEvent
 from nodeeditor.node_edge import EDGE_TYPE_DEFAULT
 from nodeeditor.node_edge_dragging import EdgeDragging as _EdgeDragging
 from nodeeditor.node_editor_widget import NodeEditorWidget as _NodeEditorWidget
@@ -14,7 +14,7 @@ from nodeeditor.node_graphics_edge import QDMGraphicsEdge
 from nodeeditor.node_graphics_view import MODE_EDGE_DRAG, QDMGraphicsView
 from nodeeditor.node_node import Node
 from nodeeditor.utils import dumpException
-from PyQt5.QtCore import QMimeData
+from qtpy.QtCore import QMimeData
 from qtpy import QtCore
 from qtpy.QtCore import QDataStream, QEvent, QIODevice, QPoint, Qt, Signal
 from qtpy.QtGui import QDragMoveEvent, QMouseEvent, QWheelEvent

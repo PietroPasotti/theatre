@@ -5,6 +5,7 @@ from typing import Dict, Optional, Tuple
 import yaml
 from scenario import Context, Mount
 
+from theatre.dialogs.edit_delta import DELTA_TEMPLATE
 from theatre.config import TEMPLATES_DIR
 from theatre.helpers import load_module
 from theatre.logger import logger
@@ -75,6 +76,10 @@ class CharmRepo:
     @property
     def virtual_fs(self):
         return self.theatre_dir / "virtual_fs"
+
+    @property
+    def deltas_template(self):
+        return self.theatre_dir / "deltas_template.py"
 
     @property
     def root(self) -> Path:
@@ -180,7 +185,15 @@ class CharmRepo:
         loader_file = self.loader_path
         # todo: load charm type from charm.py and inject the import in the template
         loader_file.write_bytes(LOADER_TEMPLATE.read_bytes())
-        print(f"created {loader_file}: put there your charm loader for this repo")
+        print(
+            f"created {loader_file}: put there your charm loader for this repo (mandatory)"
+        )
+
+        deltas_template = self.deltas_template
+        deltas_template.write_bytes(DELTA_TEMPLATE.read_bytes())
+        print(
+            f"created {deltas_template}: put there your delta template for this repo (optional)"
+        )
 
         self.state.file.write_text("{}")
         logger.info(f"created {self.state.file}")

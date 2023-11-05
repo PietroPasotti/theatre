@@ -18,7 +18,7 @@ from qtpy.QtGui import QIcon
 from qtpy.QtWidgets import QLineEdit, QVBoxLayout, QWidget
 from scenario.state import State
 
-from dialogs.edit_delta import get_deltas_from_source_code
+from theatre.dialogs.edit_delta import get_deltas_from_source_code
 from theatre.charm_repo_tools import CharmRepo
 from theatre.dialogs import edit_delta, new_state
 from theatre.helpers import get_icon
@@ -135,6 +135,9 @@ class StateNode(Node):
         self.markDirty()
         self.grNode.title_item.setParent(self.content)
         self._update_title()
+
+    def onMarkedDirty(self):
+        self.markChildrenDirty()
 
     @property
     def input_socket(self) -> Socket:
@@ -352,7 +355,18 @@ class StateNode(Node):
         self._init_delta_sockets()
 
     def open_edit_deltas_dialog(self, parent: QWidget = None):
-        dialog = edit_delta.EditDeltaDialog(parent, self._deltas_source)
+        deltas_source = None
+        # if deltas-source has been set before:
+        if ds := self._deltas_source:
+            deltas_source = ds
+
+        # if our repo has a different template:
+        elif repo := self.scene.repo:
+            dt = repo.deltas_template
+            if dt.exists():
+                deltas_source = dt.read_text()
+
+        dialog = edit_delta.EditDeltaDialog(parent, deltas_source)
         dialog.exec()
 
         if not dialog.confirmed:
@@ -454,7 +468,9 @@ class StateNode(Node):
     def deserialize(self, data, hashmap={}, restore_id=True):
         res = super().deserialize(data, hashmap, restore_id)
         self.title = data["name"]
-        self.load_deltas(data["deltas_source"])
+        deltas_source = data.get("deltas_source")
+        if deltas_source:
+            self.load_deltas(deltas_source)
 
         try:
             value = data["value"]
