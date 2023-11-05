@@ -6,6 +6,7 @@ import typing
 from functools import partial
 from pathlib import Path
 
+from PyQt5.QtGui import QKeyEvent
 from nodeeditor.node_edge import EDGE_TYPE_DEFAULT
 from nodeeditor.node_edge_dragging import EdgeDragging as _EdgeDragging
 from nodeeditor.node_editor_widget import NodeEditorWidget as _NodeEditorWidget
@@ -14,6 +15,7 @@ from nodeeditor.node_graphics_view import MODE_EDGE_DRAG, QDMGraphicsView
 from nodeeditor.node_node import Node
 from nodeeditor.utils import dumpException
 from PyQt5.QtCore import QMimeData
+from qtpy import QtCore
 from qtpy.QtCore import QDataStream, QEvent, QIODevice, QPoint, Qt, Signal
 from qtpy.QtGui import QDragMoveEvent, QMouseEvent, QWheelEvent
 from qtpy.QtWidgets import QAction, QGraphicsProxyWidget, QMenu, QVBoxLayout
@@ -146,6 +148,15 @@ class GraphicsView(QDMGraphicsView):
             sb = self.verticalScrollBar()
             sb.setValue(sb.value() - event.angleDelta().y())
             event.accept()
+
+    def keyPressEvent(self, event: QKeyEvent):
+        if event.key() == QtCore.Qt.Key_Escape:
+            # If you were dragging, stop dragging
+            if self.mode == MODE_EDGE_DRAG:
+                self.dragging.edgeDragEnd(None)
+                return
+
+        super().keyPressEvent(event)
 
 
 def open_vfs_in_external_editor(root_vfs_tempdir: Path):

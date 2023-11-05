@@ -4,6 +4,7 @@ import tempfile
 import typing
 from dataclasses import asdict
 from itertools import count
+from pathlib import Path
 from shutil import copytree
 
 import scenario
@@ -17,6 +18,7 @@ from qtpy.QtGui import QIcon
 from qtpy.QtWidgets import QLineEdit, QVBoxLayout, QWidget
 from scenario.state import State
 
+from dialogs.edit_delta import get_deltas_from_source_code
 from theatre.charm_repo_tools import CharmRepo
 from theatre.dialogs import edit_delta, new_state
 from theatre.helpers import get_icon
@@ -341,6 +343,14 @@ class StateNode(Node):
         )
         self.set_custom_value(state_with_fs)
 
+    def load_deltas(
+        self, deltas_source: str, deltas: typing.Optional[typing.List[Delta]] = None
+    ):
+        self._deltas_source = deltas_source
+        self.deltas = deltas or get_deltas_from_source_code(deltas_source)
+        self.grNode.init_delta_labels()
+        self._init_delta_sockets()
+
     def open_edit_deltas_dialog(self, parent: QWidget = None):
         dialog = edit_delta.EditDeltaDialog(parent, self._deltas_source)
         dialog.exec()
@@ -352,10 +362,7 @@ class StateNode(Node):
         intent = dialog.finalize()
         output = intent.output
 
-        self.deltas = output.deltas
-        self._deltas_source = output.source
-        self._init_delta_sockets()
-        self.grNode.init_delta_labels()
+        self.load_deltas(output.source, deltas=output.deltas)
 
     def update_value(self, new_value: StateNodeOutput) -> StateNodeOutput:
         # todo: also update library, name and icon
@@ -441,11 +448,14 @@ class StateNode(Node):
         res["value"] = self.content.edit.text()
         if self._is_custom:
             res["custom-state"] = asdict(self.value.state)
+        res["deltas_source"] = self._deltas_source
         return res
 
     def deserialize(self, data, hashmap={}, restore_id=True):
         res = super().deserialize(data, hashmap, restore_id)
         self.title = data["name"]
+        self.load_deltas(data["deltas_source"])
+
         try:
             value = data["value"]
             self.content.edit.setText(value)
