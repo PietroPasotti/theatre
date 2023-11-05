@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 from ops import UnknownStatus
-from scenario import Model, State
-from scenario import *
+from scenario import Model, State  # noqa
+from scenario import *  # noqa
 
 # Fill in your state.
 

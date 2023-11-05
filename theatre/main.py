@@ -28,7 +28,6 @@ def show_main_window(cwd: Path = None):
 
     if cwd:
         repo = CharmRepo(cwd)
-
         if repo.is_valid:
             logger.info("charm repo root detected")
             if repo.is_initialized:

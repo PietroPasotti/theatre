@@ -111,6 +111,8 @@ class GraphicsView(QDMGraphicsView):
 
     def wheelEvent(self, event: QWheelEvent):
         """overridden Qt's ``wheelEvent``. This handles zooming"""
+        step = self.zoomStep
+
         if event.modifiers() & Qt.CTRL:
             zoom_out_factor = 1 / self.zoomInFactor
             delta = event.angleDelta().y()
@@ -120,10 +122,10 @@ class GraphicsView(QDMGraphicsView):
 
             if delta > 0:
                 zoom_factor = self.zoomInFactor
-                self.zoom += self.zoomStep
+                self.zoom += step
             else:
                 zoom_factor = zoom_out_factor
-                self.zoom -= self.zoomStep
+                self.zoom -= step
 
             clamped = False
             if self.zoom < self.zoomRange[0]:
@@ -136,15 +138,9 @@ class GraphicsView(QDMGraphicsView):
                 self.scale(zoom_factor, zoom_factor)
             event.accept()
 
-        elif event.modifiers() & Qt.SHIFT:
-            # pos = self.sceneRect().topRight()
-            # new_pos = QPointF(pos.x(), pos.y()+50)
-            sb = self.horizontalScrollBar()
-            # TODO: support inverted scrolling? --> replace - with +
-            sb.setValue(sb.value() - event.angleDelta().y())
-            event.accept()
-
         else:
+            sb = self.horizontalScrollBar()
+            sb.setValue(sb.value() - event.angleDelta().x())
             sb = self.verticalScrollBar()
             sb.setValue(sb.value() - event.angleDelta().y())
             event.accept()

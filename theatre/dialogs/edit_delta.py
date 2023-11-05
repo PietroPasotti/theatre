@@ -4,7 +4,7 @@ import inspect
 import typing
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Union, Optional, Tuple, Iterable, Callable
+from typing import List, Optional, Tuple, Iterable, Callable
 
 from theatre.dialogs.file_backed_edit_dialog import TEMPLATES_DIR, FileBackedEditDialog
 from theatre.helpers import load_module

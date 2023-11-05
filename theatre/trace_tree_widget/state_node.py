@@ -4,7 +4,6 @@ import tempfile
 import typing
 from dataclasses import asdict
 from itertools import count
-from pathlib import Path
 from shutil import copytree
 
 import scenario

@@ -67,7 +67,16 @@ class CharmRepo:
     def __init__(self, path: Path):
         self._root = path
         self.state = TheatreState(self.theatre_dir)
-        self._charm_meta = yaml.safe_load((path / "metadata.yaml").read_text())
+
+    @property
+    def _charm_meta(self):
+        return self.root / "metadata.yaml"
+
+    @property
+    def charm_meta(self) -> Optional[dict]:
+        if not self._charm_meta.exists():
+            return None
+        return yaml.safe_load(self._charm_meta.read_text())
 
     @property
     def theatre_dir(self):
@@ -168,11 +177,16 @@ class CharmRepo:
         return mts
 
     def initialize(self):
+        if not self._charm_meta.exists():
+            raise RuntimeError(
+                f"invalid repo root: metadata.yaml not found in {self.root}"
+            )
+
         self.theatre_dir.mkdir(parents=True)
         default_fs = self.virtual_fs.joinpath("default")
         default_fs.mkdir(parents=True)
 
-        containers = self._charm_meta.get("containers", ())
+        containers = self.charm_meta.get("containers", ())
         for container_name in containers:
             container_fs = default_fs / container_name
             container_fs.mkdir()

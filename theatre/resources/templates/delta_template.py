@@ -12,14 +12,16 @@ This module will be executed from the charm's (virtual) root, so you can freely
 import from /src and /lib, like a charm.
 """
 
-from scenario import *
+from scenario import *  # noqa
 
 
-def with_leadership(state: State) -> State:
+def with_leadership(state: State) -> State:  # noqa
     """Same as the base state, but charm unit has leadership."""
     return state.replace(leader=True)
 
 
-def with_foo_relation(state: State) -> State:
+def with_foo_relation(state: State) -> State:  # noqa
     """Same as the base state, but adds a relation on 'foo' with some remote app data."""
-    return state.replace(relations=[Relation("foo", remote_app_data={"1": "2"})])
+    return state.replace(
+        relations=[Relation("foo", remote_app_data={"1": "2"})]  # noqa
+    )
