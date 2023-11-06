@@ -32,8 +32,34 @@ class DeltaNode:
     def __init__(self, node: "StateNode", delta: Delta):
         self._base_node = node
         self._delta = delta
-
+        self.inputs = []  # needed for compatibility with the Node interface
+        self.outputs = []  # needed for compatibility with the Node interface
         self._value_cache: typing.Optional[StateNodeOutput] = None
+
+    def get_socket(
+        self,
+        index,
+        position,
+        socket_type,
+        multi_edges,
+        count_on_this_node_side,
+        is_input,
+    ) -> DeltaSocket:
+        ds = DeltaSocket(
+            node=self,
+            index=index,
+            position=position,
+            socket_type=socket_type,
+            multi_edges=multi_edges,
+            count_on_this_node_side=count_on_this_node_side,
+            is_input=is_input,
+        )
+        if is_input:
+            self.inputs.append(ds)
+        else:
+            self.outputs.append(ds)
+
+        return ds
 
     @property
     def value(self):

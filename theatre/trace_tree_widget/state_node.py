@@ -180,8 +180,9 @@ class StateNode(Node):
                 new_outputs.append(socket)
 
         for i, delta in enumerate(self.deltas):
-            socket = DeltaSocket(
-                node=DeltaNode(self, delta),
+            node = DeltaNode(self, delta)
+            # todo: add node.outputs = [socket]
+            socket = node.get_socket(
                 index=i + 1,
                 position=self.output_socket_position,
                 socket_type=SocketType.DELTA_OUTPUT,
