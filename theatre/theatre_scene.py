@@ -18,6 +18,7 @@ from theatre.trace_tree_widget.state_bases import (
     StateGraphicsNode,
 )
 from theatre.trace_tree_widget.state_node import StateContent, StateNode
+from trace_tree_widget.delta import DeltaNode
 
 if typing.TYPE_CHECKING:
     from theatre.charm_repo_tools import CharmRepo
@@ -105,6 +106,7 @@ class TheatreScene(QObject, _Scene):
 
     state_node_changed = Signal(StateNode)
     state_node_clicked = Signal(StateNode)
+    delta_node_clicked = Signal(DeltaNode)
 
     def __init__(self, main_window: "TheatreMainWindow"):
         super().__init__()

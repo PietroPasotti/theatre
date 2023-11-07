@@ -26,7 +26,7 @@ from theatre.scenario_json import parse_state
 from theatre.trace_tree_widget.delta import Delta, DeltaNode, DeltaSocket
 from theatre.trace_tree_widget.event_edge import EventEdge
 from theatre.trace_tree_widget.scenario_interface import run_scenario
-from theatre.trace_tree_widget.state_bases import Socket, StateGraphicsNode
+from theatre.trace_tree_widget.state_bases import Socket, StateGraphicsNode, DeltaLabel
 from theatre.trace_tree_widget.structs import StateNodeOutput
 
 if typing.TYPE_CHECKING:
@@ -179,8 +179,11 @@ class StateNode(Node):
             else:
                 new_outputs.append(socket)
 
-        for i, delta in enumerate(self.deltas):
-            node = DeltaNode(self, delta)
+        delta_gr: "DeltaLabel"
+        for i, delta_gr in enumerate(self.grNode.delta_gr_items):
+            node = DeltaNode(self, delta_gr.delta)
+
+            delta_gr.delta_node = node
             # todo: add node.outputs = [socket]
             socket = node.get_socket(
                 index=i + 1,
@@ -222,10 +225,13 @@ class StateNode(Node):
         # todo: render delta list as tail of nodes beneath this one.
         self.content = StateContent(self, title=self.title)
         self.content.clicked.connect(self._on_content_clicked)
-        self.grNode = StateGraphicsNode(self)
-
+        self.grNode = StateGraphicsNode(self, on_delta_clicked=self._on_delta_clicked)
         self.grNode.setToolTip(self.title)
         self.content.edit.textChanged.connect(self.on_description_changed)
+
+    def _on_delta_clicked(self, dlabel: DeltaLabel):
+        dnode = dlabel.delta_node
+        self.scene.delta_node_clicked.emit(dnode)
 
     def _on_content_clicked(self):
         self.scene.state_node_clicked.emit(self)

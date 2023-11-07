@@ -2,11 +2,12 @@
 # See LICENSE file for licensing details.
 import typing
 
+from PyQt5.QtWidgets import QWidget
 from nodeeditor.node_graphics_node import QDMGraphicsNode
 from nodeeditor.node_graphics_socket import QDMGraphicsSocket
 from nodeeditor.node_socket import Socket as _Socket
-from PyQt5.QtWidgets import QWidget
 from qtpy.QtCore import QRectF, Qt
+from qtpy.QtCore import Signal
 from qtpy.QtGui import QBrush, QFont, QPainter, QPainterPath
 from qtpy.QtWidgets import QGraphicsTextItem
 
@@ -17,17 +18,31 @@ if typing.TYPE_CHECKING:
 
 
 class DeltaLabel(QGraphicsTextItem):
+    clicked = Signal()
+
     def __init__(self, parent: "StateGraphicsNode", delta):
         super().__init__(parent)
         self.delta = delta
         self.node = parent.node
+        # fixme: dynamically set in StateNode._init_delta_sockets
+        self.delta_node = None
+
+    def mousePressEvent(self, event):
+        self.clicked.emit()
+        super().mousePressEvent(event)
 
 
 class StateGraphicsNode(QDMGraphicsNode):
     node: "StateNode"
 
-    def __init__(self, node: "StateNode", parent: QWidget = None):
-        self.delta_gr_items: typing.List[QGraphicsTextItem] = []
+    def __init__(
+        self,
+        node: "StateNode",
+        parent: QWidget = None,
+        on_delta_clicked: typing.Callable[[DeltaLabel], None] = None,
+    ):
+        self.delta_gr_items: typing.List[DeltaLabel] = []
+        self._on_delta_clicked = on_delta_clicked
         super().__init__(node, parent)
 
     def initSizes(self):
@@ -91,14 +106,18 @@ class StateGraphicsNode(QDMGraphicsNode):
         # create anew
         self.delta_gr_items = delta_gr_items = []
         for y, delta in zip(self._delta_topleft_corners(), self.node.deltas):
-            gritem = DeltaLabel(self, delta)
-            gritem.node = self.node
-            gritem.setPlainText(delta.name)
-            gritem.setDefaultTextColor(self._delta_label_color)
-            gritem.setFont(self._delta_label_font)
-            gritem.setPos(self.title_horizontal_padding, y)
-            gritem.setTextWidth(self.width - 2 * self.title_horizontal_padding)
-            delta_gr_items.append(gritem)
+            label = DeltaLabel(self, delta)
+
+            def callback():
+                self._on_delta_clicked(label)
+
+            label.clicked.connect(callback)
+            label.setPlainText(delta.name)
+            label.setDefaultTextColor(self._delta_label_color)
+            label.setFont(self._delta_label_font)
+            label.setPos(self.title_horizontal_padding, y)
+            label.setTextWidth(self.width - 2 * self.title_horizontal_padding)
+            delta_gr_items.append(label)
 
     def paint(self, painter: QPainter, QStyleOptionGraphicsItem, widget=None):
         super().paint(painter, QStyleOptionGraphicsItem, widget)

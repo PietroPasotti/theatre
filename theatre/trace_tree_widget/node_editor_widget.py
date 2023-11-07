@@ -51,6 +51,7 @@ from theatre.trace_tree_widget.state_node import (
     create_new_node,
 )
 from theatre.trace_tree_widget.utils import autolayout
+from trace_tree_widget.delta import DeltaNode
 
 if typing.TYPE_CHECKING:
     from theatre.main_window import TheatreMainWindow
@@ -166,6 +167,7 @@ class NodeEditorWidget(_NodeEditorWidget):
     state_node_created = Signal(Intent)
     state_node_changed = Signal(StateNode)
     state_node_clicked = Signal(StateNode)
+    delta_node_clicked = Signal(DeltaNode)
 
     def __init__(self, main_window: "TheatreMainWindow", parent=None):
         self._main_window = main_window
@@ -198,6 +200,7 @@ class NodeEditorWidget(_NodeEditorWidget):
         self.scene = scene = TheatreScene(self._main_window)
         scene.state_node_changed.connect(self.state_node_changed)
         scene.state_node_clicked.connect(self.state_node_clicked)
+        scene.delta_node_clicked.connect(self.delta_node_clicked)
 
         # create graphics view
         self.view = GraphicsView(self.scene.grScene, self)

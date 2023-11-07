@@ -5,6 +5,7 @@ import typing
 
 import scenario
 import yaml
+from qtpy.QtGui import QColor
 from qtpy.QtCore import QItemSelection, Qt, Signal
 from qtpy.QtGui import QBrush, QStandardItem, QStandardItemModel
 from qtpy.QtWidgets import QListView, QSplitter, QTabWidget, QTextEdit, QTreeView
@@ -20,6 +21,8 @@ if typing.TYPE_CHECKING:
 
 _Trace = typing.List[typing.Union[StateNode, DeltaNode]]
 
+Viewable = typing.Union[StateNode, DeltaNode]
+
 
 def get_trace(leaf: StateNode) -> _Trace:
     trace = [leaf]
@@ -31,19 +34,20 @@ def get_trace(leaf: StateNode) -> _Trace:
 class TraceView(QListView):
     selection_changed = Signal(StateNode)
     _invalid_state_color = "pastel red"
+    _delta_item_bg_color = (255, 245, 240)
 
     def __init__(self, parent) -> None:
         super().__init__(parent)
         self._trace: _Trace = None
-        self._state_node: StateNode = None
+        self._object: StateNode = None
         self.setModel(QStandardItemModel())
         self.setSelectionMode(self.SingleSelection)
 
     def is_displayed(self, state: typing.Optional[StateNode]):
-        return self._state_node is state
+        return self._object is state
 
     def display(self, state: StateNode, trace: _Trace):
-        self._state_node = state
+        self._object = state
         self._trace = trace
         self._display()
         self.setCurrentIndex(self.model().index(-1, 0))
@@ -56,20 +60,24 @@ class TraceView(QListView):
             state = item.data(Qt.ItemDataRole.UserRole + 1)
             self.selection_changed.emit(state)
 
-    def _as_state_item(self, state_node: StateNode) -> QStandardItem:
-        text = f"{state_node.title} ({state_node.description})"
-        item = QStandardItem(state_node.icon, text)
-        if state_node.isInvalid():
+    def _as_state_item(self, obj: StateNode) -> QStandardItem:
+        text = f"{obj.title} ({obj.description})"
+        item = QStandardItem(obj.icon, text)
+        if obj.isInvalid():
             brush = QBrush(get_color(self._invalid_state_color))
             brush.setStyle(Qt.BrushStyle.SolidPattern)
             item.setBackground(brush)
-        item.setData(state_node)
+        item.setData(obj)
         return item
 
     def _as_delta_item(self, node: "DeltaNode") -> QStandardItem:
         item = QStandardItem(get_icon("layers"), node.name)
         item.setData(node, Qt.ItemDataRole.UserRole + 1)
-        item.setEnabled(False)
+        item.setEnabled(True)
+
+        brush = QBrush(get_color(self._delta_item_bg_color))
+        item.setBackground(brush)
+
         return item
 
     def _as_event_item(self, event: "EventEdge") -> QStandardItem:
@@ -108,12 +116,12 @@ class TextView(QTextEdit):
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
-        self._state_node: StateNode = None
+        self._object: StateNode = None
         self.setReadOnly(True)
         self.setToolTip(self.TOOLTIP)
 
-    def display(self, state_node: StateNode):
-        self._state_node = state_node
+    def display(self, obj: StateNode):
+        self._object = obj
         self.update_contents()
 
     def generate_contents(self) -> str:
@@ -129,9 +137,9 @@ class TextView(QTextEdit):
 
     @property
     def node_output(self) -> StateNodeOutput:
-        if self._state_node is None:
+        if self._object is None:
             raise StateNodeUnsetError()
-        out = self._state_node.eval()
+        out = self._object.eval()
         return out
 
     def toggle(self):
@@ -190,9 +198,9 @@ class LogsView(QSplitter):
         self.charm_logs_view.update_contents()
         self.scenario_logs_view.update_contents()
 
-    def display(self, state_node: StateNode):
-        self.charm_logs_view.display(state_node)
-        self.scenario_logs_view.display(state_node)
+    def display(self, obj: Viewable):
+        self.charm_logs_view.display(obj)
+        self.scenario_logs_view.display(obj)
 
 
 class RawStateView(TextView):
@@ -219,26 +227,26 @@ class RawStateView(TextView):
 class StateView(QTreeView):
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
-        self._state_node = None
+        self._object: Viewable = None
         self.setModel(QStandardItemModel())
 
-    def display(self, state_node: StateNode):
-        self._state_node = state_node
+    def display(self, viewable: Viewable):
+        self._object = viewable
         self.update_contents()
 
     def update_contents(self):
-        state_node: StateNode = self._state_node
+        obj: Viewable = self._object
         model: QStandardItemModel = self.model()
         model.clear()
 
-        if not state_node.value.state:
+        if not obj.value.state:
             # state still unavailable: this means the computation has failed.
             status_item = QStandardItem(get_icon("error"), "state evaluation failed")
             model.appendRow(status_item)
             return
 
         # status
-        state: scenario.State = state_node.value.state
+        state: scenario.State = obj.value.state
         status_name_to_icon = {
             "active": "stars",
             "blocked": "error",
@@ -264,8 +272,8 @@ class NodeView(QTabWidget):
         self.addTab(tv, "logs")
         self.addTab(rsv, "raw")
 
-    def is_displayed(self, state_node: StateNode | None):
-        return self._displayed is state_node
+    def is_displayed(self, obj: StateNode | None):
+        return self._displayed is obj
 
     def update_contents(self):
         """Update contents of all tabs"""
@@ -273,16 +281,16 @@ class NodeView(QTabWidget):
         self.logs_view.update_contents()
         self.raw_state_view.update_contents()
 
-    def display(self, state_node: StateNode):
-        if self.is_displayed(state_node):
-            logger.info(f"ignored display: state node {state_node} already in NodeView")
+    def display(self, obj: StateNode):
+        if self.is_displayed(obj):
+            logger.info(f"ignored display: object {obj} already in NodeView")
             return
 
-        self._displayed = state_node
+        self._displayed = obj
 
-        self.state_view.display(state_node)
-        self.logs_view.display(state_node)
-        self.raw_state_view.display(state_node)
+        self.state_view.display(obj)
+        self.logs_view.display(obj)
+        self.raw_state_view.display(obj)
 
 
 class TraceInspectorWidget(QSplitter):
@@ -301,11 +309,11 @@ class TraceInspectorWidget(QSplitter):
     def toggle(self):
         toggle_visible(self)
 
-    def display(self, state_node: StateNode):
-        trace = get_trace(state_node)
+    def display(self, obj: StateNode):
+        trace = get_trace(obj)
         self._evaluate_all(trace)
-        self.trace_view.display(state_node, trace)
-        self.node_view.display(state_node)
+        self.trace_view.display(obj, trace)
+        self.node_view.display(obj)
 
     def _evaluate_all(self, trace: _Trace):
         """Greedily evaluate all nodes in the trace."""
@@ -314,13 +322,13 @@ class TraceInspectorWidget(QSplitter):
                 # interrupt when and if a node fails to evaluate
                 break
 
-    def on_node_changed(self, state_node: StateNode):
+    def on_node_changed(self, obj: StateNode):
         """Slot for when a StateNode has changed.
 
         If we're presently displaying it, we may need to update it in the views.
         """
         if self.trace_view.is_displayed(None):
-            return self.display(state_node)
+            return self.display(obj)
 
-        if self.node_view.is_displayed(state_node):
+        if self.node_view.is_displayed(obj):
             self.node_view.update_contents()
