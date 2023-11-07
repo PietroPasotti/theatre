@@ -76,3 +76,9 @@ def charm_context() -> scenario.Context:
     patch_all()
     return scenario.Context(charm_type=MyCharm)
 ```
+
+
+# Troubleshooting
+
+If you have issues with xcb:
+https://unix.stackexchange.com/a/338540
