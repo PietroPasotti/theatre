@@ -17,8 +17,7 @@ If testing dependencies are present (all you'd require to run scenario tests, if
 # run_theatre.py
 if __name__ == '__main__':
     from theatre.main import show_main_window
-    from charm import MyCharm
-    show_main_window(MyCharm)
+    show_main_window()
 ```
 
 # Execute the file with
