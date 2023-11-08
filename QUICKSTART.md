@@ -1,4 +1,3 @@
-
 # Set up your local development environment
 
 > cd /path/to/charm/repo
@@ -82,3 +81,19 @@ def charm_context() -> scenario.Context:
 
 If you have issues with xcb:
 https://unix.stackexchange.com/a/338540
+
+
+# Running theatre in mocked mode
+
+```python
+from unittest.mock import PropertyMock, patch
+
+from main import show_main_window
+from resources.templates.loader_template import charm_context
+
+with patch(
+    "theatre.main_window.TheatreMainWindow.context",
+    PropertyMock(return_value=charm_context()),
+):
+    show_main_window()
+```
